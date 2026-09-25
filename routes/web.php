@@ -1,10 +1,11 @@
 <?php
 
+use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DepartmentController;
-use App\Http\Controllers\DoctorController;
-use App\Http\Controllers\UserController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\DoctorController;
+use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\QueueEntryController;
 use App\Http\Controllers\QueueLogController;
 
@@ -12,11 +13,32 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::resource('departments', DepartmentController::class);
-Route::resource('doctors', DoctorController::class);
-Route::resource('users', UserController::class);
-Route::resource('appointments', AppointmentController::class);
-Route::resource('queue-entries', QueueEntryController::class);
+Route::middleware(['auth','role:admin'])->group(function(){
+    Route::resource('departments',DepartmentController::class);
 
-Route::get('queue-logs', [QueueLogController::class, 'index'])->name('queue-logs.index');
-Route::delete('queue-logs/{queueLog}', [QueueLogController::class, 'destroy'])->name('queue-logs.destroy');
+    Route::resource('doctors',DoctorController::class);
+
+    Route::resource('users',UserController::class);
+
+    Route::resource('queue-logs',QueueLogController::class)->only(['index','destroy']);
+});
+
+Route::middleware(['auth','role:admin,doctor'])->group(function(){
+
+Route::resource('appointments','AppointmentController::class');
+
+Route::resource('queue-entries',QueueEntryController::class);
+});
+
+Route::get('/dashboard', function () {
+    return view('dashboard');
+})->middleware(['auth'])->name('dashboard');
+
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+
+require __DIR__.'/auth.php';

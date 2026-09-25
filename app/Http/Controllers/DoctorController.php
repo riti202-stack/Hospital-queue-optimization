@@ -22,14 +22,20 @@ class DoctorController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'department_id' => 'required|exists:departments,id',
-        ]);
-        Doctor::create($request->only('user_id', 'department_id', 'is_available'));
-        return redirect()->route('doctors.index')->with('success', 'Doctor added.');
-    }
+{
+    $request->validate([
+        'user_id' => 'required|exists:users,id',
+        'department_id' => 'required|exists:departments,id',
+    ]);
+
+    Doctor::create([
+        'user_id' => $request->user_id,
+        'department_id' => $request->department_id,
+        'is_available' => $request->has('is_available'),
+    ]);
+
+    return redirect()->route('doctors.index')->with('success', 'Doctor added.');
+}
 
     public function edit(Doctor $doctor)
     {
