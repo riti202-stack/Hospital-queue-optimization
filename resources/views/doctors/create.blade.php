@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.main')
 @section('content')
 <div class="container">
     <h2>Add Doctor</h2>

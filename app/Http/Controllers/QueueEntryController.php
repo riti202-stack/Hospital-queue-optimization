@@ -9,6 +9,15 @@ use Illuminate\Http\Request;
 
 class QueueEntryController extends Controller
 {
+
+    protected SchedulerService $scheduler;
+
+public function __construct(SchedulerService $scheduler)
+{
+    $this->scheduler = $scheduler;
+}
+
+
     public function index()
     {
         $entries = QueueEntry::with(['patient', 'doctor.user', 'department'])
@@ -69,3 +78,4 @@ class QueueEntryController extends Controller
         return redirect()->route('queue-entries.index')->with('success', 'Queue entry removed.');
     }
 }
+

@@ -8,6 +8,7 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\QueueEntryController;
 use App\Http\Controllers\QueueLogController;
+use App\Http\Controllers\DoctorPortalController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -38,6 +39,20 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+Route::middleware(['auth','role:doctor'])->prefix('doctor')->name('doctor.')->group(function(){
+
+   Route::get('/queue',[DoctorPortalController::class,'queue'])->name('queue');
+
+   Route::get('/availability',[DoctorPortalController::class,'availability'])->name('availability');
+
+   Route::post('/availability',[DoctorPortalController::class,'toggleAvailability'])->name('availability.update');
+
+   Route::get('/appointments',[DoctorPortalController::class,'appointments'])->name('appointments');
+
+
+
 });
 
 
