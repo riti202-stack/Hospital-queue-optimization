@@ -84,12 +84,7 @@
                         <a href="#" class="nav-link d-inline-block me-3">My Appointments</a>
                     @endif
 
-                    @if(auth()->user()->role === 'patient')
-    <a href="{{ route('patient.book') }}" class="nav-link d-inline-block me-3">Book Appointment</a>
-    <a href="{{ route('patient.checkin') }}" class="nav-link d-inline-block me-3">Check In</a>
-    <a href="{{ route('patient.queue-status') }}" class="nav-link d-inline-block me-3">Queue Status</a>
-    <a href="{{ route('patient.appointments') }}" class="nav-link d-inline-block me-3">My Appointments</a>
-@endif
+                    
                     <a href="{{ route('profile.edit') }}" class="nav-link d-inline-block me-3">Profile</a>
                     <form action="{{ route('logout') }}" method="POST" class="d-inline">
                         @csrf

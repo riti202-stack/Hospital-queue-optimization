@@ -15,7 +15,7 @@ class PatientPortalController extends Controller
 {
     protected SchedulerService $scheduler;
 
-    public function __constructor(SchedulerService $scheduler)
+    public function __construct(SchedulerService $scheduler)
     {
         $this->scheduler = $scheduler;
     }
