@@ -56,6 +56,34 @@ class DoctorPortalController extends Controller
             return redirect()->route('doctor.availability')->with('success','Availability updated.');
     }
 
+    public function queueData()
+{
+    $doctor = auth()->user()->doctor;
+    if (!$doctor) {
+        return response()->json([]);
+    }
+
+    $entries = $this->scheduler->getOrderedQueue()->where('doctor_id', $doctor->id);
+
+    return response()->json($entries->map(function ($e) {
+        return [
+            'id' => $e->id,
+            'patient_name' => $e->patient->name,
+            'urgency_level' => $e->urgency_level,
+            'priority_score' => number_format($e->priority_score, 1),
+            'waited_for' => \Carbon\Carbon::parse($e->checked_in_at)->diffForHumans(null, true),
+        ];
+    })->values());
+}
+
+public function callPatient(\App\Models\QueueEntry $entry)
+{
+    $entry->update(['status' => 'in_progress', 'started_at' => now()]);
+    $entry->queueLogs()->create(['action' => 'in_progress']);
+
+    return response()->json(['success' => true]);
+}
+
     public function appointments()
     {
         $doctor = auth()->user()->doctor;

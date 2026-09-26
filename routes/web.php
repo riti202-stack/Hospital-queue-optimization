@@ -9,6 +9,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\QueueEntryController;
 use App\Http\Controllers\QueueLogController;
 use App\Http\Controllers\DoctorPortalController;
+use App\Http\Controllers\PatientPortalController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -49,10 +50,23 @@ Route::middleware(['auth','role:doctor'])->prefix('doctor')->name('doctor.')->gr
 
    Route::post('/availability',[DoctorPortalController::class,'toggleAvailability'])->name('availability.update');
 
+   Route::get('/queue/data', [DoctorPortalController::class, 'queueData'])->name('queue.data');
+    Route::post('/queue/{entry}/call', [DoctorPortalController::class, 'callPatient'])->name('queue.call');
+
    Route::get('/appointments',[DoctorPortalController::class,'appointments'])->name('appointments');
 
 
 
+});
+
+Route::middleware(['auth', 'role:patient'])->prefix('patient')->name('patient.')->group(function () {
+    Route::get('/book', [PatientPortalController::class, 'bookForm'])->name('book');
+    Route::post('/book', [PatientPortalController::class, 'bookStore'])->name('book.store');
+    Route::get('/checkin', [PatientPortalController::class, 'checkinForm'])->name('checkin');
+    Route::post('/checkin', [PatientPortalController::class, 'checkinStore'])->name('checkin.store');
+    Route::get('/queue-status', [PatientPortalController::class, 'queueStatus'])->name('queue-status');
+    Route::get('/queue-status/data', [PatientPortalController::class, 'queueStatusData'])->name('queue-status.data');
+    Route::get('/appointments', [PatientPortalController::class, 'appointments'])->name('appointments');
 });
 
 
