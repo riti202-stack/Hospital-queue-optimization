@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Services\SchedulerService;
+use App\Models\QueueEntry;
 
 class DoctorPortalController extends Controller
 {
@@ -99,6 +100,36 @@ public function callPatient(\App\Models\QueueEntry $entry)
             ->paginate(10);
 
             return view('doctor.appointments',compact('appointments'));
+    }
+
+    public function referPatient(QueueEntry $entry)
+    {
+        $entry->update(['status'=>'referred']);
+        $entry->queueLogs()->create(['action'=>'referred_for_tests']);
+
+        return response()->json(['success'=> true]);
+    }
+
+    public function referredList()
+    {
+        $doctor =auth()->user()->doctor;
+        if(!$doctor)
+            {
+                abort(403,'Your account is not linked to a doctor profile.');
+            }
+
+            $referred = QueueEntry::with('patient')
+            ->where('doctor_id',$doctor->id)
+            ->where('status','referred')
+            ->get()
+            ->map(fn($e) =>  [
+                'id'=>$e->id,
+                'patient_name'=>$e->patient->name,
+                'urgency_level'=>$e->urgency_level,
+
+            ]);
+
+            return response()->json($referred);
     }
     //
 }

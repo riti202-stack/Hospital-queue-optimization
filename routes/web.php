@@ -10,6 +10,7 @@ use App\Http\Controllers\QueueEntryController;
 use App\Http\Controllers\QueueLogController;
 use App\Http\Controllers\DoctorPortalController;
 use App\Http\Controllers\PatientPortalController;
+use App\Http\Controllers\AppointmentPdfController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -27,9 +28,12 @@ Route::middleware(['auth','role:admin'])->group(function(){
 
 Route::middleware(['auth','role:admin,doctor'])->group(function(){
 
-Route::resource('appointments','AppointmentController::class');
+Route::resource('appointments',AppointmentController::class);
 
 Route::resource('queue-entries',QueueEntryController::class);
+
+Route::get('/appointments-pdf', [AppointmentPdfController::class, 'form'])->name('admin.appointment-pdf.form');
+Route::post('/appointments-pdf', [AppointmentPdfController::class, 'generate'])->name('admin.appointment-pdf.generate');
 });
 
 Route::get('/dashboard', function () {
@@ -58,6 +62,12 @@ Route::middleware(['auth','role:doctor'])->prefix('doctor')->name('doctor.')->gr
     Route::post('/queue/{entry}/call', [DoctorPortalController::class, 'callPatient'])->name('queue.call');
 
    Route::get('/appointments',[DoctorPortalController::class,'appointments'])->name('appointments');
+
+   Route::post('/queue/{entry}/refer',[DoctorPortalController::class,'referPatient'])->name('queue.refer');
+
+   Route::post('/queue/{entry}/return',[DoctorPortalController::class,'returnPatient'])->name('queue.return');
+
+   Route::get('/queue/referred',[DoctorPortalController::class,'referrredList'])->name('queue.referred');
 
 
 
