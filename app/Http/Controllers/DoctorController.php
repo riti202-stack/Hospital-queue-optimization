@@ -31,6 +31,7 @@ class DoctorController extends Controller
     Doctor::create([
         'user_id' => $request->user_id,
         'department_id' => $request->department_id,
+        'room_no'=>$request->room_no,
         'is_available' => $request->has('is_available'),
     ]);
 
@@ -50,7 +51,7 @@ class DoctorController extends Controller
             'user_id' => 'required|exists:users,id',
             'department_id' => 'required|exists:departments,id',
         ]);
-        $doctor->update($request->only('user_id', 'department_id', 'is_available'));
+        $doctor->update($request->only('user_id', 'department_id','room_no', 'is_available'));
         return redirect()->route('doctors.index')->with('success', 'Doctor updated.');
     }
 
