@@ -10,8 +10,8 @@ class DoctorController extends Controller
 {
     public function index()
     {
-        $doctors = Doctor::with(['user', 'department'])->latest()->paginate(10);
-        return view('doctors.index', compact('doctors'));
+        $departments = Department::with(['doctors.user'])->get();
+        return view('doctors.index',compact('departments'));
     }
 
     public function create()

@@ -132,6 +132,44 @@ class PatientPortalController extends Controller
     }
 
 
+    public function checkinAppointment(Appointment $appointment)
+    {
+        if($appointment->patient_id !== auth()->id())
+            {
+                abort(403);
+            }
+
+            if($appointment->status !== 'booked')
+                {
+                    return back()->with('error','this appointment cannot be checked in');
+                }
+
+                $existing = QueueEntry::where('appointment_id',$appointment->id)->first();
+                if($existing)
+                    {
+                        return redirect()->route('patient.queue-status')->with('success','You are already checked in');
+                    }
+
+                    $entry = QueueEntry::create([
+
+                    'patient_id'=>$appointment->patient_id,
+                    'doctor_id'=>$appointment->doctor_id,
+                    'department_id'=>$appointment->department_id,
+                    'appointment_id'=>$appointment->id,
+                    'urgency_level'=>'routine',
+                    'priority_score'=>10,
+                    'status'=>'waiting',
+                    'checked_in_at'=>now(),
+
+
+
+                    ]);
+
+                    $entry->queueLogs()->create(['action'=>'checked_in_from_appointment']);
+                    return redirect()->route('patient.queue-status')->with('success','checked in -you have joined the queue.');
+    }
+
+
     
     
 

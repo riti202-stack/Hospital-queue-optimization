@@ -16,4 +16,6 @@ class QueueEntry extends Model
     public function department() { return $this->belongsTo(Department::class); }
     public function appointment() { return $this->belongsTo(Appointment::class); }
     public function queueLogs() { return $this->hasMany(QueueLog::class); }
+
+    // public function appointment() { return $this->belongsTo(Appointment::class); }
 }

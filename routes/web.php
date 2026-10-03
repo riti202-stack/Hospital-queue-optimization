@@ -67,7 +67,7 @@ Route::middleware(['auth','role:doctor'])->prefix('doctor')->name('doctor.')->gr
 
    Route::post('/queue/{entry}/return',[DoctorPortalController::class,'returnPatient'])->name('queue.return');
 
-   Route::get('/queue/referred',[DoctorPortalController::class,'referrredList'])->name('queue.referred');
+   Route::get('/queue/referred',[DoctorPortalController::class,'referredList'])->name('queue.referred');
 
 
 
@@ -81,6 +81,7 @@ Route::middleware(['auth', 'role:patient'])->prefix('patient')->name('patient.')
     Route::get('/queue-status', [PatientPortalController::class, 'queueStatus'])->name('queue-status');
     Route::get('/queue-status/data', [PatientPortalController::class, 'queueStatusData'])->name('queue-status.data');
     Route::get('/appointments', [PatientPortalController::class, 'appointments'])->name('appointments');
+    Route::post('/appointments/{appointment}/checkin', [PatientPortalController::class, 'checkinAppointment'])->name('appointment.checkin');
 });
 
 

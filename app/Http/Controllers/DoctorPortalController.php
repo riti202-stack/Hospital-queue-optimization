@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\User;
 use App\Services\SchedulerService;
 use App\Models\QueueEntry;
 
@@ -131,5 +132,45 @@ public function callPatient(\App\Models\QueueEntry $entry)
 
             return response()->json($referred);
     }
+
+    public function returnPatient(QueueEntry $entry)
+{
+    $entry->update([
+        'status' => 'waiting',
+        'checked_in_at' => now(),
+    ]);
+    $entry->queueLogs()->create(['action' => 'returned_with_reports']);
+
+    return response()->json(['success' => true]);
+}
+
+    public function completePatient(Request $request, QueueEntry $entry)
+{
+    $request->validate([
+        'diagnosis' => 'required|string',
+        'notes' => 'nullable|string',
+    ]);
+
+    $doctor = auth()->user()->doctor;
+
+    \App\Models\MedicalRecord::create([
+        'patient_id' => $entry->patient_id,
+        'doctor_id' => $doctor->id,
+        'department_id' => $entry->department_id,
+        'queue_entry_id' => $entry->id,
+        'diagnosis' => $request->diagnosis,
+        'notes' => $request->notes,
+        'visit_date' => now()->toDateString(),
+    ]);
+
+    $entry->update(['status' => 'completed', 'completed_at' => now()]);
+    $entry->queueLogs()->create(['action' => 'completed']);
+
+    if ($entry->appointment_id) {
+        $entry->appointment()->update(['status' => 'completed']);
+    }
+
+    return response()->json(['success' => true]);
+}
     //
 }
