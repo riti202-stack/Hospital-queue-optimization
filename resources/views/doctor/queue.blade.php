@@ -1,136 +1,136 @@
 @extends('layouts.main')
 @section('content')
+@php
+    $badge = fn($u) => match($u) {
+        'emergency' => 'bg-danger',
+        'urgent'    => 'bg-warning text-dark',
+        default     => 'bg-success-subtle text-success',
+    };
+@endphp
+
+<style>
+    .next-card { border: 2px solid #0f6e56; border-radius: 16px; background: #f1faf7; }
+    .next-card.emergency { border-color: #dc3545; background: #fff5f5; }
+    .pos-circle { width: 34px; height: 34px; border-radius: 50%; background: #e8f5f1; color: #0f6e56;
+                  display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+    .big-pos { width: 64px; height: 64px; font-size: 28px; background: #0f6e56; color: #fff; }
+    .queue-row td { vertical-align: middle; }
+    .live-dot { width: 9px; height: 9px; border-radius: 50%; background: #20c997; display: inline-block; }
+</style>
+
 <div class="page-card p-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <h3 class="mb-0"><i class="ti ti-stethoscope"></i> My Queue</h3>
-        <span class="text-muted"><span class="live-dot"></span>Live</span>
-    </div>
-
-    <div id="queue-container" class="row g-3">
-        <div class="col-12 text-center text-muted py-5">Loading queue…</div>
-    </div>
-
-    <hr class="my-4">
-
-    <h5 class="mb-3"><i class="ti ti-flask"></i> Sent for tests — awaiting return</h5>
-    <div id="referred-container" class="row g-3">
-        <div class="col-12 text-muted">Loading…</div>
-    </div>
-</div>
-
-<div class="modal fade" id="callModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="actionModalTitle">Call patient</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="callModalBody"></div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-brand" id="confirmCallBtn">Confirm</button>
-            </div>
+        <div class="text-muted small text-end">
+            <span class="live-dot"></span> Live · refreshes every 30 s<br>
+            Seen today: <strong>{{ $seenToday }}</strong> · Avg consultation: <strong>{{ $avgMinutes }} min</strong>
         </div>
     </div>
+
+    @if(session('success'))<div class="alert alert-success py-2">{{ session('success') }}</div>@endif
+
+    {{-- ===== NOW SEEING ===== --}}
+    @if($current)
+        <div class="card mb-3 border-0 shadow-sm">
+            <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <div class="text-muted small text-uppercase">Now seeing</div>
+                    <h5 class="mb-0">{{ $current->patient->name ?? 'Patient' }}
+                        <span class="badge {{ $badge($current->urgency_level) }} ms-1">{{ $current->urgency_level }}</span>
+                    </h5>
+                    <small class="text-muted">Started {{ \Carbon\Carbon::parse($current->started_at)->diffForHumans() }}</small>
+                </div>
+                <div class="d-flex gap-2">
+                    {{-- Paste your existing "Send for tests" button/form here, using $current --}}
+                    <form method="POST" action="{{ route('doctor.queue.complete') }}">
+                        @csrf
+                        <button class="btn btn-outline-secondary"><i class="ti ti-check"></i> Complete only</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- ===== NEXT PATIENT ===== --}}
+    @if($next)
+        @php $n = $next['entry']; @endphp
+        <div class="next-card {{ $n->urgency_level === 'emergency' ? 'emergency' : '' }} p-4 mb-4">
+            <div class="d-flex flex-wrap align-items-center gap-4">
+                <span class="pos-circle big-pos">1</span>
+                <div class="flex-grow-1">
+                    <div class="text-muted small text-uppercase fw-semibold">Call next</div>
+                    <h2 class="mb-1">{{ $n->patient->name ?? 'Patient' }}
+                        <span class="badge {{ $badge($n->urgency_level) }} fs-6 align-middle">{{ $n->urgency_level }}</span>
+                    </h2>
+                    <div class="mb-1"><i class="ti ti-info-circle"></i> {{ $next['reason'] }}</div>
+                    <small class="text-muted">
+                        Checked in {{ \Carbon\Carbon::parse($n->checked_in_at)->format('h:i A') }}
+                        @if($n->appointment?->scheduled_time)
+                            · Appointment {{ \Carbon\Carbon::parse($n->appointment->scheduled_time)->format('h:i A') }}
+                        @else
+                            · Walk-in
+                        @endif
+                        · Score {{ number_format($n->priority_score, 1) }}
+                    </small>
+                </div>
+                <form method="POST" action="{{ route('doctor.queue.next') }}">
+                    @csrf
+                    <button class="btn btn-brand btn-lg px-4">
+                        <i class="ti ti-phone-call"></i> {{ $current ? 'Complete & call next' : 'Call in' }}
+                    </button>
+                </form>
+            </div>
+        </div>
+    @elseif(! $current)
+        <div class="alert alert-light border text-center py-4">
+            <i class="ti ti-mood-smile fs-3"></i><br>No patients waiting.
+        </div>
+    @else
+        <div class="alert alert-light border">No one else is waiting. Complete the current patient when done.</div>
+    @endif
+
+    {{-- ===== UP NEXT ===== --}}
+    @if($upcoming->isNotEmpty())
+        <h5 class="mb-2">Up next <span class="badge bg-secondary">{{ $upcoming->count() }}</span></h5>
+        <p class="text-muted small mb-2">
+            Order is set automatically: emergencies first, then everyone else by urgency plus time waited,
+            so nobody waits forever. Expected times are based on your average consultation time.
+        </p>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead class="table-light">
+                    <tr><th>#</th><th>Patient</th><th>Why this position</th><th>Expected</th><th class="text-end"></th></tr>
+                </thead>
+                <tbody>
+                @foreach($upcoming as $row)
+                    @php $e = $row['entry']; @endphp
+                    <tr class="queue-row">
+                        <td><span class="pos-circle">{{ $row['position'] }}</span></td>
+                        <td>
+                            <div class="fw-semibold">{{ $e->patient->name ?? 'Patient' }}</div>
+                            <span class="badge {{ $badge($e->urgency_level) }}">{{ $e->urgency_level }}</span>
+                        </td>
+                        <td class="small text-muted">{{ $row['reason'] }}</td>
+                        <td class="small">~{{ $row['expectedAt']->format('h:i A') }}</td>
+                        <td class="text-end">
+                            <form method="POST" action="{{ route('doctor.queue.call', $e) }}"
+                                  onsubmit="return confirm('Call {{ addslashes($e->patient->name ?? 'this patient') }} before patient #1?')">
+                                @csrf
+                                <button class="btn btn-sm btn-outline-secondary" title="Call out of turn">
+                                    <i class="ti ti-arrow-bar-to-up"></i> Call now
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
 </div>
 
 <script>
-let selectedEntryId = null;
-let selectedAction = null; // 'call', 'refer', or 'return'
-const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-
-function urgencyBadgeClass(level) {
-    return { emergency: 'badge-emergency', urgent: 'badge-urgent', routine: 'badge-routine' }[level] || 'bg-secondary';
-}
-
-function renderQueue(entries) {
-    const container = document.getElementById('queue-container');
-    if (entries.length === 0) {
-        container.innerHTML = '<div class="col-12 text-center text-muted py-5">No patients waiting.</div>';
-        return;
-    }
-    container.innerHTML = entries.map(e => `
-        <div class="col-md-6 col-lg-4">
-            <div class="card entry-card p-3 h-100">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h5 class="mb-0">${e.patient_name}</h5>
-                    <span class="badge ${urgencyBadgeClass(e.urgency_level)}">${e.urgency_level}</span>
-                </div>
-                <p class="text-muted mb-1"><i class="ti ti-clock"></i> Waiting ${e.waited_for}</p>
-                <p class="text-muted mb-3"><i class="ti ti-chart-bar"></i> Priority score: ${e.priority_score}</p>
-                <div class="d-flex gap-2 mt-auto">
-                    <button class="btn btn-brand btn-sm flex-fill" onclick="openModal(${e.id}, '${e.patient_name}', 'call')">
-                        <i class="ti ti-phone-call"></i> Call in
-                    </button>
-                    <button class="btn btn-outline-warning btn-sm flex-fill" onclick="openModal(${e.id}, '${e.patient_name}', 'refer')">
-                        <i class="ti ti-flask"></i> Send for tests
-                    </button>
-                </div>
-            </div>
-        </div>
-    `).join('');
-}
-
-function renderReferred(entries) {
-    const container = document.getElementById('referred-container');
-    if (entries.length === 0) {
-        container.innerHTML = '<div class="col-12 text-muted">No patients currently out for tests.</div>';
-        return;
-    }
-    container.innerHTML = entries.map(e => `
-        <div class="col-md-6 col-lg-4">
-            <div class="card entry-card p-3 h-100 d-flex flex-row justify-content-between align-items-center">
-                <div>
-                    <div class="fw-semibold">${e.patient_name}</div>
-                    <span class="badge ${urgencyBadgeClass(e.urgency_level)}">${e.urgency_level}</span>
-                </div>
-                <button class="btn btn-brand btn-sm" onclick="openModal(${e.id}, '${e.patient_name}', 'return')">
-                    <i class="ti ti-corner-down-left"></i> Returned
-                </button>
-            </div>
-        </div>
-    `).join('');
-}
-
-function openModal(id, name, action) {
-    selectedEntryId = id;
-    selectedAction = action;
-    const titles = {
-        call: 'Call patient',
-        refer: 'Send for tests',
-        return: 'Patient returned',
-    };
-    const bodies = {
-        call: `Mark ${name} as in progress?`,
-        refer: `Send ${name} out for tests? They'll move out of the active queue until marked returned.`,
-        return: `Add ${name} back into the active queue with their reports?`,
-    };
-    document.getElementById('actionModalTitle').textContent = titles[action];
-    document.getElementById('callModalBody').textContent = bodies[action];
-    new bootstrap.Modal(document.getElementById('callModal')).show();
-}
-
-document.getElementById('confirmCallBtn').addEventListener('click', () => {
-    const endpoints = { call: 'call', refer: 'refer', return: 'return' };
-    fetch(`/doctor/queue/${selectedEntryId}/${endpoints[selectedAction]}`, {
-        method: 'POST',
-        headers: { 'X-CSRF-TOKEN': csrfToken, 'Content-Type': 'application/json' },
-    }).then(() => {
-        bootstrap.Modal.getInstance(document.getElementById('callModal')).hide();
-        loadQueue();
-        loadReferred();
-    });
-});
-
-function loadQueue() {
-    fetch('/doctor/queue/data').then(res => res.json()).then(renderQueue);
-}
-function loadReferred() {
-    fetch('{{ route("doctor.queue.referred") }}').then(res => res.json()).then(renderReferred);
-}
-
-loadQueue();
-loadReferred();
-setInterval(() => { loadQueue(); loadReferred(); }, 5000);
+    // Auto-refresh so new arrivals and re-ranking appear without reloading
+    setTimeout(() => window.location.reload(), 30000);
 </script>
 @endsection

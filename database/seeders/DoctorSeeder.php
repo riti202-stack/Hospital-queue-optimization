@@ -8,19 +8,21 @@ use Illuminate\Database\Seeder;
 
 class DoctorSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        $departments = ['General','emergency','Dental','Cardiology','Orthopedics','Pediatrics'];
+        $departments = ['General', 'emergency', 'Dental', 'Cardiology', 'Orthopedics', 'Pediatrics'];
 
-        foreach($departments as $name)
-            {
-                Department::firstOrCreate(['name'=>$name]);
-            }
+        foreach ($departments as $name) {
+            Department::firstOrCreate(['name' => $name]);
+        }
 
-            Doctor::factory()->count(50)->create();
-        //
+        // Only top up to 50 doctors, so running this again doesn't add 50 more
+        $missing = 50 - Doctor::count();
+        if ($missing > 0) {
+            Doctor::factory()->count($missing)->create();
+        }
+
+        // Fill license, specialization, contact, employment, compliance + qualifications
+        $this->call(FillDoctorCredentialsSeeder::class);
     }
 }

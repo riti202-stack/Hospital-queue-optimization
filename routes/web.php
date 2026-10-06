@@ -11,6 +11,11 @@ use App\Http\Controllers\QueueLogController;
 use App\Http\Controllers\DoctorPortalController;
 use App\Http\Controllers\PatientPortalController;
 use App\Http\Controllers\AppointmentPdfController;
+use App\Http\Controllers\DoctorReportPdfController;
+
+use App\Http\Controllers\DoctorProfilePdfController;
+use App\Http\Controllers\DoctorQueueController;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -24,6 +29,14 @@ Route::middleware(['auth','role:admin'])->group(function(){
     Route::resource('users',UserController::class);
 
     Route::resource('queue-logs',QueueLogController::class)->only(['index','destroy']);
+
+    Route::get('/doctor-report-pdf', [DoctorReportPdfController::class, 'form'])->name('admin.doctor-report-pdf.form');
+
+    Route::post('/doctor-report-pdf', [DoctorReportPdfController::class, 'generate'])->name('admin.doctor-report-pdf.generate');
+
+    Route::get('/doctor-profile-pdf', [DoctorProfilePdfController::class, 'form'])->name('admin.doctor-profile-pdf.form');
+Route::post('/doctor-profile-pdf', [DoctorProfilePdfController::class, 'generate'])->name('admin.doctor-profile-pdf.generate');
+Route::get('/doctors/{doctor}/pdf', [DoctorProfilePdfController::class, 'quick'])->name('admin.doctor-profile-pdf.quick');
 });
 
 Route::middleware(['auth','role:admin,doctor'])->group(function(){
@@ -50,27 +63,23 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-Route::middleware(['auth','role:doctor'])->prefix('doctor')->name('doctor.')->group(function(){
+Route::middleware(['auth','role:doctor'])->prefix('doctor')->name('doctor.')->group(function () {
 
-   Route::get('/queue',[DoctorPortalController::class,'queue'])->name('queue');
+    // New queue page (replaces DoctorPortalController@queue)
+    Route::get('/queue', [DoctorQueueController::class, 'index'])->name('queue');
+    Route::post('/queue/next', [DoctorQueueController::class, 'callNext'])->name('queue.next');
+    Route::post('/queue/complete', [DoctorQueueController::class, 'complete'])->name('queue.complete');
+    Route::post('/queue/{entry}/call', [DoctorQueueController::class, 'callSpecific'])->name('queue.call');
 
-   Route::get('/availability',[DoctorPortalController::class,'availability'])->name('availability');
+    // Existing features, unchanged
+    Route::get('/queue/data', [DoctorPortalController::class, 'queueData'])->name('queue.data');
+    Route::get('/queue/referred', [DoctorPortalController::class, 'referredList'])->name('queue.referred');
+    Route::post('/queue/{entry}/refer', [DoctorPortalController::class, 'referPatient'])->name('queue.refer');
+    Route::post('/queue/{entry}/return', [DoctorPortalController::class, 'returnPatient'])->name('queue.return');
 
-   Route::post('/availability',[DoctorPortalController::class,'toggleAvailability'])->name('availability.update');
-
-   Route::get('/queue/data', [DoctorPortalController::class, 'queueData'])->name('queue.data');
-    Route::post('/queue/{entry}/call', [DoctorPortalController::class, 'callPatient'])->name('queue.call');
-
-   Route::get('/appointments',[DoctorPortalController::class,'appointments'])->name('appointments');
-
-   Route::post('/queue/{entry}/refer',[DoctorPortalController::class,'referPatient'])->name('queue.refer');
-
-   Route::post('/queue/{entry}/return',[DoctorPortalController::class,'returnPatient'])->name('queue.return');
-
-   Route::get('/queue/referred',[DoctorPortalController::class,'referredList'])->name('queue.referred');
-
-
-
+    Route::get('/availability', [DoctorPortalController::class, 'availability'])->name('availability');
+    Route::post('/availability', [DoctorPortalController::class, 'toggleAvailability'])->name('availability.update');
+    Route::get('/appointments', [DoctorPortalController::class, 'appointments'])->name('appointments');
 });
 
 Route::middleware(['auth', 'role:patient'])->prefix('patient')->name('patient.')->group(function () {

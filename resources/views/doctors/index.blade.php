@@ -22,7 +22,7 @@
                 @foreach($dept->doctors as $doc)
                     <tr>
                         <td>{{ $doc->id }}</td>
-                        <td class="fw-semibold">{{ $doc->user->name }}</td>
+                        <td><a href="{{ route('doctors.show', $doc) }}" class="fw-semibold text-decoration-none">{{ $doc->user->name }}</a></td>
                         <td>{{ $doc->room_no ?? '—' }}</td>
                         <td><span class="badge {{ $doc->is_available ? 'bg-success' : 'bg-secondary' }}">{{ $doc->is_available ? 'Available' : 'Unavailable' }}</span></td>
                         <td class="text-end">
