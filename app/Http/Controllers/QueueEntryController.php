@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Models\Doctor;
 use App\Models\Department;
 use Illuminate\Http\Request;
+use App\Services\SchedulerService;
+use Carbon\Carbon;
 
 class QueueEntryController extends Controller
 {
@@ -18,11 +20,101 @@ public function __construct(SchedulerService $scheduler)
 }
 
 
-    public function index()
+    public function index(Request $request,SchedulerService $scheduler)
     {
-        $entries = QueueEntry::with(['patient', 'doctor.user', 'department'])
-            ->orderByDesc('priority_score')->paginate(10);
-        return view('queue-entries.index', compact('entries'));
+        $user = $request->user();
+
+        if($user->role ==='doctor' && ! $request->filled('department') && $user->doctor)
+            {
+                return redirect()->route('queue-entries.index',[
+                    'department'=>$user->doctor->department_id,
+
+                    'doctor'=>$user->doctor->id,
+
+                ]);
+            }
+
+            $scheduler->ensureDailyCleanup();
+
+        $active = QueueEntry::whereIn('status',['waiting','in_progress'])
+            ->where('checked_in_at','>=',today())
+            ->get(['id','department_id','doctor_id','status']);
+
+        $departments = Department::orderBy('name')->get()->map(function ($d) use ($active)
+        {
+            $d->active_count = $active->where('department_id',$d->id)->count();
+
+            return $d;
+        });
+
+        $department = $request->filled('department')
+            ? $departments->firstWhere('id',(int) $request->department)
+            : null;
+
+
+        $doctors = collect();
+        $selectedDoctor = null;
+        $current = null;
+        $queue = collect();
+        $unassignedCount =0;
+        $completedToday =0;
+        $showUnassigned = false;
+
+        if($department)
+            {
+                $doctors = Doctor::with('user')
+                     ->where('department_id',$department->id)
+                     ->get()
+                     ->sortBy(fn ($d) => $d->user->name ?? '')
+                     ->values()
+                     ->map(function($d) use ($active)
+                     {
+                        $mine = $active->where('doctor_id',$d->id);
+                        $d->waiting_count=$mine->where('status','waiting')->count();
+                        $d->is_seeing = $mine->where('status','in_progress')->isNotEmpty();
+                        return $d;
+                     });
+
+
+                     $unassignedCount = $active->where('department_id',$department->id)
+                     ->whereNull('doctor_id')->where('status','waiting')->count();
+
+
+                     if($request->doctor === 'unassigned')
+                        {
+                            $showUnassigned = true;
+                            $queue = $scheduler->getOrderedQueue($department->id)
+                            ->whereNull('doctor_id')->values();
+
+                        }
+
+                        elseif($request->filled('doctor'))
+                            {
+                                $selectedDoctor = $doctors->firstWhere('id',(int)$request->doctor);
+
+                                if($selectedDoctor)
+                                    {
+                                        $current = $scheduler->current($selectedDoctor->id);
+                                        $queue = $scheduler->getOrderedQueue($department->id,$selectedDoctor->id)
+                                        ->where('doctor_id',$selectedDoctor->id)
+                                        ->values();
+
+                                        $completedToday = QueueEntry::where('doctor_id',$selectedDoctor->id)
+                                        ->where('status','completed')
+                                        ->whereDate('completed_at',today())
+                                        ->count();
+                                    }
+                            }
+            }
+
+            return view('queue-entries.index',compact(
+                'departments','department','doctors','selectedDoctor','current','queue','unassignedCount','completedToday','showUnassigned'
+            ));
+
+
+            
+
+        
     }
 
     public function create()
