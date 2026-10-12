@@ -35,9 +35,7 @@
             <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
                     <div class="text-muted small text-uppercase">Now seeing</div>
-                    <h5 class="mb-0">{{ $current->patient->name ?? 'Patient' }}
-                        <span class="badge {{ $badge($current->urgency_level) }} ms-1">{{ $current->urgency_level }}</span>
-                    </h5>
+                    <h5 class="mb-0"><span class="badge bg-dark me-1">#{{ $current->token_no }}</span>{{ $current->patient->name ?? 'Patient' }}
                     <small class="text-muted">Started {{ \Carbon\Carbon::parse($current->started_at)->diffForHumans() }}</small>
                 </div>
                 <div class="d-flex gap-2">
@@ -59,9 +57,7 @@
                 <span class="pos-circle big-pos">1</span>
                 <div class="flex-grow-1">
                     <div class="text-muted small text-uppercase fw-semibold">Call next</div>
-                    <h2 class="mb-1">{{ $n->patient->name ?? 'Patient' }}
-                        <span class="badge {{ $badge($n->urgency_level) }} fs-6 align-middle">{{ $n->urgency_level }}</span>
-                    </h2>
+                    <h2 class="mb-1"><span class="badge bg-dark me-2">#{{ $n->token_no }}</span>{{ $n->patient->name ?? 'Patient' }}
                     <div class="mb-1"><i class="ti ti-info-circle"></i> {{ $next['reason'] }}</div>
                     <small class="text-muted">
                         Checked in {{ \Carbon\Carbon::parse($n->checked_in_at)->format('h:i A') }}
@@ -107,7 +103,7 @@
                     <tr class="queue-row">
                         <td><span class="pos-circle">{{ $row['position'] }}</span></td>
                         <td>
-                            <div class="fw-semibold">{{ $e->patient->name ?? 'Patient' }}</div>
+                            <div class="fw-semibold"><span class="badge bg-dark me-1">#{{ $e->token_no }}</span>{{ $e->patient->name ?? 'Patient' }}</div>
                             <span class="badge {{ $badge($e->urgency_level) }}">{{ $e->urgency_level }}</span>
                         </td>
                         <td class="small text-muted">{{ $row['reason'] }}</td>

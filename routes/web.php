@@ -15,6 +15,7 @@ use App\Http\Controllers\DoctorReportPdfController;
 
 use App\Http\Controllers\DoctorProfilePdfController;
 use App\Http\Controllers\DoctorQueueController;
+use App\Http\Controllers\PatientQueueController;
 
 
 Route::get('/', function () {
@@ -43,6 +44,11 @@ Route::middleware(['auth','role:admin,doctor'])->group(function(){
 
 Route::resource('appointments',AppointmentController::class);
 
+
+Route::get('/queue-entries/department/{department}', [QueueEntryController::class, 'department'])
+    ->name('queue-entries.department');
+Route::get('/queue-entries/department/{department}/doctor/{doctor}', [QueueEntryController::class, 'doctor'])
+    ->name('queue-entries.doctor');
 Route::resource('queue-entries',QueueEntryController::class);
 
 Route::get('/appointments-pdf', [AppointmentPdfController::class, 'form'])->name('admin.appointment-pdf.form');
@@ -87,10 +93,12 @@ Route::middleware(['auth', 'role:patient'])->prefix('patient')->name('patient.')
     Route::post('/book', [PatientPortalController::class, 'bookStore'])->name('book.store');
     Route::get('/checkin', [PatientPortalController::class, 'checkinForm'])->name('checkin');
     Route::post('/checkin', [PatientPortalController::class, 'checkinStore'])->name('checkin.store');
-    Route::get('/queue-status', [PatientPortalController::class, 'queueStatus'])->name('queue-status');
-    Route::get('/queue-status/data', [PatientPortalController::class, 'queueStatusData'])->name('queue-status.data');
-    Route::get('/appointments', [PatientPortalController::class, 'appointments'])->name('appointments');
-    Route::post('/appointments/{appointment}/checkin', [PatientPortalController::class, 'checkinAppointment'])->name('appointment.checkin');
+    Route::get('/queue-status', [PatientQueueController::class, 'status'])->name('queue-status');
+Route::get('/queue-status/data', [PatientQueueController::class, 'statusData'])->name('queue-status.data');
+Route::get('/appointments', [PatientQueueController::class, 'appointments'])->name('appointments');
+Route::post('/appointments/{appointment}/checkin', [PatientQueueController::class, 'checkinAppointment'])->name('appointment.checkin');
+Route::get('/alerts', [PatientQueueController::class, 'alerts'])->name('alerts');
+Route::post('/alerts/{id}/read', [PatientQueueController::class, 'readAlert'])->name('alerts.read');
 });
 
 

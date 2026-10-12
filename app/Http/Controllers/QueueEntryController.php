@@ -20,103 +20,90 @@ public function __construct(SchedulerService $scheduler)
 }
 
 
-    public function index(Request $request,SchedulerService $scheduler)
-    {
-        $user = $request->user();
+    /** PAGE 1: all departments */
+public function index(Request $request, SchedulerService $scheduler)
+{
+    $user = $request->user();
 
-        if($user->role ==='doctor' && ! $request->filled('department') && $user->doctor)
-            {
-                return redirect()->route('queue-entries.index',[
-                    'department'=>$user->doctor->department_id,
+    // A doctor goes straight to their own queue
+    if ($user->role === 'doctor' && $user->doctor) {
+        return redirect()->route('queue-entries.doctor', [
+            $user->doctor->department_id, $user->doctor->id,
+        ]);
+    }
 
-                    'doctor'=>$user->doctor->id,
+    $scheduler->ensureDailyCleanup();
 
-                ]);
-            }
+    $active = $this->activeToday();
 
-            $scheduler->ensureDailyCleanup();
-
-        $active = QueueEntry::whereIn('status',['waiting','in_progress'])
-            ->where('checked_in_at','>=',today())
-            ->get(['id','department_id','doctor_id','status']);
-
-        $departments = Department::orderBy('name')->get()->map(function ($d) use ($active)
-        {
-            $d->active_count = $active->where('department_id',$d->id)->count();
-
+    $departments = Department::withCount('doctors')->orderBy('name')->get()
+        ->map(function ($d) use ($active) {
+            $mine = $active->where('department_id', $d->id);
+            $d->waiting_count = $mine->where('status', 'waiting')->count();
+            $d->seeing_count  = $mine->where('status', 'in_progress')->count();
             return $d;
         });
 
-        $department = $request->filled('department')
-            ? $departments->firstWhere('id',(int) $request->department)
-            : null;
+    return view('queue-entries.index', compact('departments'));
+}
 
+/** PAGE 2: doctors of one department */
+public function department(Department $department, SchedulerService $scheduler)
+{
+    $scheduler->ensureDailyCleanup();
 
-        $doctors = collect();
-        $selectedDoctor = null;
-        $current = null;
-        $queue = collect();
-        $unassignedCount =0;
-        $completedToday =0;
-        $showUnassigned = false;
+    $active = $this->activeToday()->where('department_id', $department->id);
 
-        if($department)
-            {
-                $doctors = Doctor::with('user')
-                     ->where('department_id',$department->id)
-                     ->get()
-                     ->sortBy(fn ($d) => $d->user->name ?? '')
-                     ->values()
-                     ->map(function($d) use ($active)
-                     {
-                        $mine = $active->where('doctor_id',$d->id);
-                        $d->waiting_count=$mine->where('status','waiting')->count();
-                        $d->is_seeing = $mine->where('status','in_progress')->isNotEmpty();
-                        return $d;
-                     });
+    $doctors = Doctor::with('user')
+        ->where('department_id', $department->id)
+        ->get()
+        ->sortBy(fn ($d) => $d->user->name ?? '')
+        ->values()
+        ->map(function ($d) use ($active, $scheduler) {
+            $d->waiting_count = $active->where('doctor_id', $d->id)->where('status', 'waiting')->count();
+            $d->current = $scheduler->current($d->id);
+            return $d;
+        });
 
+    // Walk-ins not yet assigned to a doctor in this department
+    $unassigned = $scheduler->getOrderedQueue($department->id)
+        ->whereNull('doctor_id')->values();
 
-                     $unassignedCount = $active->where('department_id',$department->id)
-                     ->whereNull('doctor_id')->where('status','waiting')->count();
+    return view('queue-entries.department', compact('department', 'doctors', 'unassigned'));
+}
 
+/** PAGE 3: one doctor's queue */
+public function doctor(Department $department, Doctor $doctor, SchedulerService $scheduler)
+{
+    abort_unless($doctor->department_id === $department->id, 404);
 
-                     if($request->doctor === 'unassigned')
-                        {
-                            $showUnassigned = true;
-                            $queue = $scheduler->getOrderedQueue($department->id)
-                            ->whereNull('doctor_id')->values();
-
-                        }
-
-                        elseif($request->filled('doctor'))
-                            {
-                                $selectedDoctor = $doctors->firstWhere('id',(int)$request->doctor);
-
-                                if($selectedDoctor)
-                                    {
-                                        $current = $scheduler->current($selectedDoctor->id);
-                                        $queue = $scheduler->getOrderedQueue($department->id,$selectedDoctor->id)
-                                        ->where('doctor_id',$selectedDoctor->id)
-                                        ->values();
-
-                                        $completedToday = QueueEntry::where('doctor_id',$selectedDoctor->id)
-                                        ->where('status','completed')
-                                        ->whereDate('completed_at',today())
-                                        ->count();
-                                    }
-                            }
-            }
-
-            return view('queue-entries.index',compact(
-                'departments','department','doctors','selectedDoctor','current','queue','unassignedCount','completedToday','showUnassigned'
-            ));
-
-
-            
-
-        
+    // A doctor may only open their own queue
+    $user = auth()->user();
+    if ($user->role === 'doctor') {
+        abort_unless($user->doctor && $user->doctor->id === $doctor->id, 403);
     }
 
+    $doctor->load('user');
+    $current = $scheduler->current($doctor->id);
+    $queue = $scheduler->getOrderedQueue($department->id, $doctor->id)
+        ->where('doctor_id', $doctor->id)
+        ->values();
+
+    $completedToday = QueueEntry::where('doctor_id', $doctor->id)
+        ->where('status', 'completed')
+        ->whereDate('completed_at', today())
+        ->count();
+
+    return view('queue-entries.doctor', compact('department', 'doctor', 'current', 'queue', 'completedToday'));
+}
+
+/** Today's waiting + with-doctor entries (used for counts) */
+private function activeToday()
+{
+    return QueueEntry::whereIn('status', ['waiting', 'in_progress'])
+        ->where('checked_in_at', '>=', today())
+        ->get(['id', 'department_id', 'doctor_id', 'status']);
+}
     public function create()
     {
         $patients = User::where('role', 'patient')->get();

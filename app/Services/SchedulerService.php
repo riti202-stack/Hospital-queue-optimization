@@ -4,43 +4,85 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\QueueEntry;
-use App\Notifications\ConsultationCompleted;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class SchedulerService
 {
-    /**
-     * Base weight per urgency level.
-     * Emergency is far above the others so it can NEVER be overtaken by aging.
-     */
     protected array $urgencyWeights = [
         'emergency' => 1000,
         'urgent'    => 50,
         'routine'   => 10,
     ];
 
-    /** Points gained per minute of waiting (prevents starvation) */
     protected float $agingRate = 0.5;
-
-    /** Maximum points a patient can gain from waiting */
     protected float $agingCap = 60;
 
-    /** Priority = urgency weight + min(effective wait x aging rate, cap) */
+    // ================= Check-in =================
+
+    /** The one way to put a patient in a queue (number + duplicate guard happen in the model) */
+    public function checkIn(int $patientId, int $departmentId, ?int $doctorId = null,
+                            string $urgency = 'routine', ?int $appointmentId = null): QueueEntry
+    {
+        $this->ensureDailyCleanup();
+        $this->fillMissingTokens();
+
+        $entry = QueueEntry::create([
+            'patient_id'     => $patientId,
+            'department_id'  => $departmentId,
+            'doctor_id'      => $doctorId,
+            'appointment_id' => $appointmentId,
+            'urgency_level'  => $urgency,
+            'status'         => 'waiting',
+            'checked_in_at'  => now(),
+        ]);
+
+        $entry->load('appointment');
+        $entry->priority_score = $this->calculatePriority($entry);
+        $entry->saveQuietly();
+
+        return $entry;
+    }
+
+    /** Gives a queue number to any of today's entries that don't have one (e.g. seeded rows) */
+    public function fillMissingTokens(): void
+    {
+        if (! QueueEntry::whereNull('token_no')->where('checked_in_at', '>=', today())->exists()) {
+            return;
+        }
+
+        $rows = QueueEntry::where('checked_in_at', '>=', today())
+            ->orderBy('checked_in_at')->orderBy('id')
+            ->get(['id', 'department_id', 'token_no', 'checked_in_at']);
+
+        $next = [];
+        foreach ($rows as $r) {
+            $next[$r->department_id] = max($next[$r->department_id] ?? 0, (int) $r->token_no);
+        }
+
+        foreach ($rows->whereNull('token_no') as $r) {
+            $next[$r->department_id]++;
+            DB::table('queue_entries')->where('id', $r->id)->update([
+                'token_no'      => $next[$r->department_id],
+                'checked_in_at' => $r->checked_in_at,
+            ]);
+        }
+    }
+
+    // ================= Priority =================
+
     public function calculatePriority(QueueEntry $entry): float
     {
         return $this->breakdown($entry)['score'];
     }
 
-    /** Same calculation, returned in parts so screens can explain the score */
     public function breakdown(QueueEntry $entry): array
     {
         $base = $this->urgencyWeights[$entry->urgency_level] ?? 0;
 
         $waitStart = $this->waitStartsAt($entry);
         $minutes = max(0, $waitStart->diffInMinutes(now(), false));
-
         $aging = min($minutes * $this->agingRate, $this->agingCap);
 
         return [
@@ -53,23 +95,17 @@ class SchedulerService
         ];
     }
 
-    /**
-     * Walk-in: waiting counts from check-in.
-     * Booked patient who arrived early: waiting counts from the appointment slot.
-     */
     protected function waitStartsAt(QueueEntry $entry): Carbon
     {
         $checkedIn = Carbon::parse($entry->checked_in_at);
 
         if ($entry->appointment_id && $entry->appointment?->scheduled_time) {
-            $slot = Carbon::parse($entry->appointment->scheduled_time);
-            return $checkedIn->max($slot);
+            return $checkedIn->max(Carbon::parse($entry->appointment->scheduled_time));
         }
 
         return $checkedIn;
     }
 
-    /** Recalculate only the entries being shown */
     public function refreshPriorities($entries): void
     {
         foreach ($entries as $entry) {
@@ -81,19 +117,17 @@ class SchedulerService
         }
     }
 
-    /** Kept for compatibility with existing calls */
     public function refreshAllPriorities(): void
     {
         $this->refreshPriorities(QueueEntry::with('appointment')->where('status', 'waiting')->get());
     }
 
-    /**
-     * Ordered waiting list for today.
-     * Pass $doctorId for a doctor's queue: their patients + unassigned walk-ins of their department.
-     */
+    // ================= Queue =================
+
     public function getOrderedQueue(?int $departmentId = null, ?int $doctorId = null)
     {
         $this->ensureDailyCleanup();
+        $this->fillMissingTokens();
 
         $query = QueueEntry::with(['patient', 'doctor.user', 'department', 'appointment'])
             ->where('status', 'waiting')
@@ -118,10 +152,10 @@ class SchedulerService
         ])->values();
     }
 
-    /** The patient currently with the doctor, if any */
     public function current(int $doctorId): ?QueueEntry
     {
         $this->ensureDailyCleanup();
+        $this->fillMissingTokens();
 
         return QueueEntry::with(['patient', 'appointment'])
             ->where('doctor_id', $doctorId)
@@ -131,7 +165,7 @@ class SchedulerService
             ->first();
     }
 
-    /** "Call next": finishes the current patient and starts the top-ranked one */
+    /** Finishes the current patient and calls the top-ranked one (the model notifies both) */
     public function callNext(int $doctorId, int $departmentId): ?QueueEntry
     {
         if ($current = $this->current($doctorId)) {
@@ -150,10 +184,7 @@ class SchedulerService
         return $next;
     }
 
-    /**
-     * The ONE place a consultation is completed:
-     * queue entry -> completed, appointment -> completed, patient notified.
-     */
+    /** The model's events update the appointment and notify the patient */
     public function completeEntry(QueueEntry $entry): void
     {
         if ($entry->status === 'completed') {
@@ -161,17 +192,8 @@ class SchedulerService
         }
 
         $entry->update(['status' => 'completed', 'completed_at' => now()]);
-        $entry->appointment?->update(['status' => 'completed']);
-
-        try {
-            $entry->loadMissing('patient', 'doctor.user', 'department');
-            $entry->patient?->notify(new ConsultationCompleted($entry));
-        } catch (\Throwable $e) {
-            report($e);
-        }
     }
 
-    /** Doctor's average consultation length today (12 until there is data, minimum 3) */
     public function averageConsultMinutes(int $doctorId): int
     {
         $avg = QueueEntry::where('doctor_id', $doctorId)
@@ -184,31 +206,21 @@ class SchedulerService
         return max(3, (int) round($avg ?: 12));
     }
 
-    /** What the PATIENT sees for one of their queue entries */
+    /** What the PATIENT sees — same ranking as the doctor and admin screens */
     public function patientStatus(QueueEntry $entry): array
     {
         $entry->loadMissing('doctor.user', 'department', 'appointment');
 
         $room = $entry->doctor?->room_no;
-        $checkedIn = Carbon::parse($entry->checked_in_at);
-
-        $token = QueueEntry::where('department_id', $entry->department_id)
-            ->when($entry->doctor_id, fn ($q) => $q->where('doctor_id', $entry->doctor_id))
-            ->whereDate('checked_in_at', $checkedIn->toDateString())
-            ->where(function ($q) use ($entry) {
-                $q->where('checked_in_at', '<', $entry->checked_in_at)
-                  ->orWhere(fn ($q2) => $q2->where('checked_in_at', $entry->checked_in_at)->where('id', '<=', $entry->id));
-            })
-            ->count();
 
         $base = [
             'id'          => $entry->id,
-            'token'       => $token,
+            'token'       => $entry->token_no,
             'doctor'      => $entry->doctor?->user?->name ?? 'Next available doctor',
             'department'  => $entry->department?->name,
             'room'        => $room,
             'urgency'     => $entry->urgency_level,
-            'checked_in'  => $checkedIn->format('h:i A'),
+            'checked_in'  => Carbon::parse($entry->checked_in_at)->format('h:i A'),
             'appointment' => $entry->appointment?->scheduled_time
                 ? Carbon::parse($entry->appointment->scheduled_time)->format('h:i A') : null,
         ];
@@ -217,7 +229,7 @@ class SchedulerService
             return $base + [
                 'state' => 'called', 'position' => 0, 'ahead' => 0, 'total' => null,
                 'expected_at' => null, 'expected_in' => 0,
-                'message' => 'It\'s your turn. Please go to ' . ($room ? "Room {$room}" : 'the doctor\'s room') . ' now.',
+                'message' => "It's your turn. Please go to " . ($room ? "Room {$room}" : "the doctor's room") . ' now.',
             ];
         }
 
@@ -247,14 +259,13 @@ class SchedulerService
             'expected_at' => now()->addMinutes($minutes)->format('h:i A'),
             'expected_in' => $minutes,
             'message'     => $index === 0
-                ? 'You are next. Please stay near ' . ($room ? "Room {$room}" : 'the doctor\'s room') . '.'
+                ? 'You are next. Please stay near ' . ($room ? "Room {$room}" : "the doctor's room") . '.'
                 : "{$index} patient" . ($index > 1 ? 's' : '') . ' ahead of you.',
         ];
     }
 
     // ================= End-of-day cleanup =================
 
-    /** Runs closeStaleEntries() at most once per day (no cron needed) */
     public function ensureDailyCleanup(): void
     {
         $key = 'queue-cleanup-' . today()->toDateString();
@@ -265,13 +276,11 @@ class SchedulerService
         Cache::put($key, true, now()->endOfDay());
     }
 
-    /** Closes everything left open from previous days */
     public function closeStaleEntries(): array
     {
         $start = today();
         $result = ['in_progress_completed' => 0, 'waiting_expired' => 0, 'appointments_completed' => 0, 'appointments_missed' => 0];
 
-        // 1. Called in but never completed -> completed
         QueueEntry::with('appointment')
             ->where('status', 'in_progress')
             ->where('checked_in_at', '<', $start)
@@ -282,16 +291,13 @@ class SchedulerService
                     'status'       => 'completed',
                     'completed_at' => $startedAt->copy()->addMinutes(15)->min($startedAt->copy()->endOfDay()),
                 ]);
-                $e->appointment?->update(['status' => 'completed']);
                 $result['in_progress_completed']++;
             });
 
-        // 2. Checked in but never called -> expired
         $result['waiting_expired'] = QueueEntry::where('status', 'waiting')
             ->where('checked_in_at', '<', $start)
             ->update(['status' => $this->hasEnum('queue_entries', 'status', 'expired') ? 'expired' : 'completed', 'updated_at' => now()]);
 
-        // 3. Past appointments still "booked" -> completed (if seen) or no-show
         $noShow = $this->hasEnum('appointments', 'status', 'no-show') ? 'no-show'
             : ($this->hasEnum('appointments', 'status', 'no_show') ? 'no_show' : 'cancelled');
 
@@ -307,7 +313,6 @@ class SchedulerService
         return $result;
     }
 
-    /** True if an enum column allows this value (or the column is not an enum) */
     protected function hasEnum(string $table, string $column, string $value): bool
     {
         static $cache = [];

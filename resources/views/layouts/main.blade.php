@@ -59,6 +59,12 @@
         }
     </style>
 </head>
+
+@auth
+    @if(auth()->user()->role === 'patient')
+        @include('partials.call-alert')
+    @endif
+@endauth
 <body>
     <nav class="navbar navbar-expand-lg navbar-glass mb-4">
         <div class="container">
@@ -88,6 +94,7 @@
                         <a href="#" class="nav-link d-inline-block me-3">Book Appointment</a>
                         <a href="#" class="nav-link d-inline-block me-3">Check In</a>
                         <a href="#" class="nav-link d-inline-block me-3">My Appointments</a>
+                        <a href="{{ route('patient.queue-status') }}" class="nav-link d-inline-block text-white me-3">My Queue</a>
                     @endif
 
                     
