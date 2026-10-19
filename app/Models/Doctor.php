@@ -14,7 +14,7 @@ class Doctor extends Model
         'license_number', 'license_issuing_body', 'license_expiry',
         'specialization', 'sub_specialty',
         'employment_type', 'date_of_joining', 'working_hours', 'fee_share_percent',
-        'malpractice_insurance_policy_no', 'background_check_status',];
+        'malpractice_insurance_policy_no', 'background_check_status','about','chamber_phone'];
 
     public function user() { return $this->belongsTo(User::class); }
     public function department() { return $this->belongsTo(Department::class); }

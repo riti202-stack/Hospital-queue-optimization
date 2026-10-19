@@ -96,7 +96,7 @@ class DoctorController extends Controller
             'license_number', 'license_issuing_body', 'license_expiry',
             'specialization', 'sub_specialty', 'employment_type', 'date_of_joining',
             'working_hours', 'fee_share_percent', 'malpractice_insurance_policy_no',
-            'background_check_status',
+            'background_check_status','about','chamber_phone',
         ]),
 
         'photo'=>$photoPath,

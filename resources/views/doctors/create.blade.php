@@ -136,6 +136,19 @@
             </div>
         </div>
 
+        <h6 class="text-muted mt-4 mb-3">Shown to patients</h6>
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <label class="form-label">Appointment / chamber phone</label>
+        <input type="text" name="chamber_phone" class="form-control"
+               value="{{ old('chamber_phone', $doctor->chamber_phone ?? '') }}" placeholder="e.g. 01700-000000">
+    </div>
+    <div class="col-12">
+        <label class="form-label">About (what the doctor treats, approach to care)</label>
+        <textarea name="about" rows="3" class="form-control">{{ old('about', $doctor->about ?? '') }}</textarea>
+    </div>
+</div>
+
         <div class="form-check mb-4">
             <input type="checkbox" name="is_available" class="form-check-input" checked>
             <label class="form-check-label">Available</label>

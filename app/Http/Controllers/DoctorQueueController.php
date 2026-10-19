@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\QueueEntry;
 use App\Services\SchedulerService;
 use Carbon\Carbon;
+use App\Models\Appointment;
 
 class DoctorQueueController extends Controller
 {
@@ -60,6 +61,64 @@ class DoctorQueueController extends Controller
             'seenToday'  => $seenToday,
         ]);
     }
+
+
+    /** My Appointments: today, upcoming, and the last 7 days of history */
+public function appointments()
+{
+    $doctor = auth()->user()->doctor;
+    abort_unless($doctor, 403, 'No doctor profile linked to this account.');
+
+    // Closes yesterday's leftovers (booked -> completed / missed)
+    $this->scheduler->ensureDailyCleanup();
+
+    $base = Appointment::with('patient')->where('doctor_id', $doctor->id);
+
+    $today = (clone $base)
+        ->whereDate('scheduled_time', today())
+        ->orderBy('scheduled_time')
+        ->get();
+
+    $upcoming = (clone $base)
+        ->where('scheduled_time', '>=', today()->addDay())
+        ->where('status', 'booked')
+        ->orderBy('scheduled_time')
+        ->get();
+
+    // Only the last 7 days; older visits drop off this list automatically
+    $historyList = (clone $base)
+        ->where('scheduled_time', '>=', today()->subDays(7))
+        ->where('scheduled_time', '<', today())
+        ->orderByDesc('scheduled_time')
+        ->get();
+
+    $entries = QueueEntry::whereIn('appointment_id', $today->pluck('id')->merge($historyList->pluck('id')))
+        ->orderBy('id')->get()->keyBy('appointment_id');
+
+    // One status for every appointment, used by the view
+    $statusOf = function ($a) use ($entries) {
+        $e = $entries->get($a->id);
+        return match (true) {
+            in_array($a->status, ['cancelled', 'canceled'])                => ['Cancelled', 'bg-secondary'],
+            $e && $e->status === 'in_progress'                             => ['With you now', 'bg-primary'],
+            $e && $e->status === 'waiting'                                 => ['Waiting', 'bg-info text-dark'],
+            ($e && $e->status === 'completed') || $a->status === 'completed' => ['Done', 'bg-success'],
+            in_array($a->status, ['no-show', 'no_show'])                   => ['Missed', 'bg-warning text-dark'],
+            Carbon::parse($a->scheduled_time)->isPast()                    => ['Not arrived (late)', 'bg-warning text-dark'],
+            default                                                        => ['Not arrived yet', 'bg-light text-dark border'],
+        };
+    };
+
+    $history = $historyList->groupBy(fn ($a) => Carbon::parse($a->scheduled_time)->toDateString());
+
+    $stats = [
+        'total'     => $today->count(),
+        'checkedIn' => $today->filter(fn ($a) => $entries->has($a->id))->count(),
+        'done'      => $today->filter(fn ($a) => $statusOf($a)[0] === 'Done')->count(),
+    ];
+
+    return view('doctor.appointments-list', compact('doctor', 'today', 'upcoming', 'history', 'entries', 'statusOf', 'stats'));
+}
 
     /** Main button: finish current patient, start the top-ranked one */
     public function callNext()

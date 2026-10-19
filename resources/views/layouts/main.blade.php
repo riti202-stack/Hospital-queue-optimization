@@ -91,9 +91,10 @@
                         <a href="{{ route('doctor.appointments') }}" class="nav-link d-inline-block me-3">My Appointments</a>
                     @endif
                     @if(auth()->user()->role === 'patient')
-                        <a href="#" class="nav-link d-inline-block me-3">Book Appointment</a>
-                        <a href="#" class="nav-link d-inline-block me-3">Check In</a>
-                        <a href="#" class="nav-link d-inline-block me-3">My Appointments</a>
+                        <a href="{{ route('patient.home') }}" class="nav-link d-inline-block text-white me-3">Home</a>
+                        <a href="{{ route('patient.book') }}" class="nav-link d-inline-block me-3">Book Appointment</a>
+                        <a href="{{ route('patient.checkin') }}" class="nav-link d-inline-block me-3">Check In</a>
+                        <a href="{{ route('patient.appointments') }}" class="nav-link d-inline-block me-3">My Appointments</a>
                         <a href="{{ route('patient.queue-status') }}" class="nav-link d-inline-block text-white me-3">My Queue</a>
                     @endif
 
@@ -116,5 +117,13 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    @include('partials.footer')
+
+    @auth
+        @if(auth()->user()->role === 'patient')
+            @include('partials.call-alert')
+        @endif
+    @endauth
 </body>
 </html>
