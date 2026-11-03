@@ -126,7 +126,7 @@ class PatientQueueController extends Controller
         $items = auth()->user()->unreadNotifications()
             ->where('created_at', '>=', today())
             ->latest()->take(5)->get()
-            ->filter(fn ($n) => in_array($n->data['type'] ?? '', ['patient_called', 'consultation_completed']))
+            ->filter(fn ($n) => in_array($n->data['type'] ?? '', ['patient_called', 'consultation_completed', 'test_update']))
             ->sortBy('created_at')
             ->map(fn ($n) => ['id' => $n->id] + $n->data)
             ->values();

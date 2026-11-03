@@ -36,9 +36,19 @@
         if (showing || !queue.length) return;
         showing = queue.shift();
         const called = showing.type === 'patient_called';
-        icon.innerHTML = called
-            ? '<i class="ti ti-bell-ringing" style="color:#dc3545"></i>'
-            : '<i class="ti ti-circle-check" style="color:#198754"></i>';
+           ok.addEventListener('click', async () => {
+       const id = showing.id, go = showing.url;
+       wrap.style.display = 'none';
+       showing = null;
+       try {
+           await fetch(readUrl + '/' + id + '/read', {
+               method: 'POST',
+               headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+           });
+       } catch (e) {}
+       if (go) { location.href = go; return; }
+       show();
+   });
         title.textContent = showing.title || '';
         msg.textContent = showing.message || '';
         ok.textContent = called ? "OK, I'm going" : 'OK';

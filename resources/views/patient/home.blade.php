@@ -22,7 +22,7 @@
         ['ambulance',      'Emergency care',         'Open 24 hours, 7 days a week. Emergency patients are always seen first, before anyone else in the queue.', 'tel:999', 'Call 999'],
         ['door-enter',     'Outdoor (OPD)',          'Walk in, check in at the desk or from your phone, and see a doctor the same day without a paper token.', route('patient.checkin'), 'Check in'],
         ['stethoscope',    'Specialist consultation','Book a specialist in any department and choose the doctor, date and time that suit you.', route('patient.departments'), 'Book now'],
-        ['test-pipe',      'Lab tests',              'Blood, urine and other tests ordered during your visit, with results added to your care record.', null, null],
+        ['test-pipe',      'Lab tests',              'See every test with its price, select what your doctor prescribed and book a time online.', route('patient.tests'), 'See tests & prices'],
         ['radioactive',    'Imaging & radiology',    'X-ray, ultrasound and other scans arranged by your doctor in the same visit where possible.', null, null],
         ['pill',           'Pharmacy',               'Collect your prescribed medicines before you leave, with clear advice on how to take them.', null, null],
         ['truck-delivery', 'Ambulance service',      'Round-the-clock ambulance support for emergencies and transfers. Call the hospital to arrange.', 'tel:'.preg_replace('/[^0-9+]/', '', $hospitalPhone), 'Call us'],

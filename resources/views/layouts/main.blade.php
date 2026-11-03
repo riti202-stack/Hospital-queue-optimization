@@ -80,6 +80,11 @@
                         <a href="{{ route('queue-logs.index') }}" class="nav-link d-inline-block me-3">Logs</a>
                         <a href="{{ route('admin.appointment-pdf.form') }}" class="nav-link d-inline-block text-white me-3">Export PDF</a>
 
+                        @php $pendingTests = \App\Models\TestRequest::whereIn('status', ['pending', 'accepted'])->count(); @endphp
+<a href="{{ route('admin.test-requests.index') }}" class="nav-link d-inline-block text-white me-3">
+    Test Requests @if($pendingTests)<span class="badge bg-danger">{{ $pendingTests }}</span>@endif
+</a>
+
                         <a href="{{ route('admin.doctor-report-pdf.form') }}" class="nav-link d-inline-block text-white me-3">Doctor Report</a>
 
                         <a href="{{ route('admin.doctor-profile-pdf.form') }}" class="nav-link d-inline-block text-white me-3">Doctor PDF</a>
@@ -96,6 +101,8 @@
                         <a href="{{ route('patient.checkin') }}" class="nav-link d-inline-block me-3">Check In</a>
                         <a href="{{ route('patient.appointments') }}" class="nav-link d-inline-block me-3">My Appointments</a>
                         <a href="{{ route('patient.queue-status') }}" class="nav-link d-inline-block text-white me-3">My Queue</a>
+
+                        <a href="{{ route('patient.tests') }}" class="nav-link d-inline-block text-white me-3">Lab Tests</a>
                     @endif
 
                     

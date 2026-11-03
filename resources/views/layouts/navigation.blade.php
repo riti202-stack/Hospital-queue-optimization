@@ -12,6 +12,11 @@
                 <a href="{{ route('queue-entries.index') }}" class="nav-link d-inline-block text-white me-3">Queue</a>
                 <a href="{{ route('queue-logs.index') }}" class="nav-link d-inline-block text-white me-3">Logs</a>
                 <a href="{{ route('admin.appointment-pdf.form') }}" class="nav-link d-inline-block text-white me-3">Export PDF</a>
+                @php $pendingTests = \App\Models\TestRequest::whereIn('status', ['pending', 'accepted'])->count(); @endphp
+<x-nav-link :href="route('admin.test-requests.index')" :active="request()->routeIs('admin.test-requests.*')">
+    Test Requests
+    @if($pendingTests)<span class="badge bg-danger ms-1">{{ $pendingTests }}</span>@endif
+</x-nav-link>
 
                 <a href="{{ route('admin.doctor-report-pdf.form') }}" class="nav-link d-inline-block text-white me-3">Doctor Report</a>
             @endif

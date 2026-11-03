@@ -12,6 +12,9 @@ use App\Http\Controllers\DoctorPortalController;
 use App\Http\Controllers\PatientPortalController;
 use App\Http\Controllers\AppointmentPdfController;
 use App\Http\Controllers\DoctorReportPdfController;
+use App\Http\Controllers\PatientTestController;
+use App\Http\Controllers\AdminTestRequestController;
+use App\Http\Controllers\AdminLabTestController;
 
 use App\Http\Controllers\DoctorProfilePdfController;
 use App\Http\Controllers\DoctorQueueController;
@@ -44,6 +47,14 @@ Route::get('/users/admins', [UserController::class, 'admins'])->name('users.admi
     Route::get('/doctor-profile-pdf', [DoctorProfilePdfController::class, 'form'])->name('admin.doctor-profile-pdf.form');
 Route::post('/doctor-profile-pdf', [DoctorProfilePdfController::class, 'generate'])->name('admin.doctor-profile-pdf.generate');
 Route::get('/doctors/{doctor}/pdf', [DoctorProfilePdfController::class, 'quick'])->name('admin.doctor-profile-pdf.quick');
+
+Route::resource('lab-tests', AdminLabTestController::class)->except('show');
+Route::get('/test-requests', [AdminTestRequestController::class, 'index'])->name('admin.test-requests.index');
+Route::get('/test-requests/{testRequest}', [AdminTestRequestController::class, 'show'])->name('admin.test-requests.show');
+Route::post('/test-requests/{testRequest}/book', [AdminTestRequestController::class, 'book'])->name('admin.test-requests.book');
+Route::post('/test-requests/{testRequest}/suggest', [AdminTestRequestController::class, 'suggest'])->name('admin.test-requests.suggest');
+Route::post('/test-requests/{testRequest}/complete', [AdminTestRequestController::class, 'complete'])->name('admin.test-requests.complete');
+Route::post('/test-requests/{testRequest}/cancel', [AdminTestRequestController::class, 'cancel'])->name('admin.test-requests.cancel');
 });
 
 Route::middleware(['auth','role:admin,doctor'])->group(function(){
@@ -124,6 +135,15 @@ Route::middleware(['auth', 'role:patient'])->prefix('patient')->name('patient.')
     Route::get('/queue-status/data', [PatientQueueController::class, 'statusData'])->name('queue-status.data');
     Route::get('/alerts', [PatientQueueController::class, 'alerts'])->name('alerts');
     Route::post('/alerts/{id}/read', [PatientQueueController::class, 'readAlert'])->name('alerts.read');
+
+    Route::get('/tests', [PatientTestController::class, 'catalog'])->name('tests');
+Route::get('/tests/review', [PatientTestController::class, 'review'])->name('tests.review');
+Route::post('/tests', [PatientTestController::class, 'store'])->name('tests.store');
+Route::get('/test-requests', [PatientTestController::class, 'index'])->name('tests.requests');
+Route::get('/test-requests/{testRequest}', [PatientTestController::class, 'show'])->name('tests.requests.show');
+Route::post('/test-requests/{testRequest}/accept', [PatientTestController::class, 'accept'])->name('tests.requests.accept');
+Route::post('/test-requests/{testRequest}/decline', [PatientTestController::class, 'decline'])->name('tests.requests.decline');
+Route::post('/test-requests/{testRequest}/cancel', [PatientTestController::class, 'cancel'])->name('tests.requests.cancel');
 });
 
 
