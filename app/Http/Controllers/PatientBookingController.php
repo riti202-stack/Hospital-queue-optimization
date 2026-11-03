@@ -9,6 +9,7 @@ use App\Models\QueueEntry;
 use App\Services\SchedulerService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class PatientBookingController extends Controller
 {
@@ -150,6 +151,7 @@ class PatientBookingController extends Controller
 
         $request->validate([
             'date' => 'required|date|after_or_equal:today|before_or_equal:' . today()->addDays(30)->toDateString(),
+            'dependent_id' => ['nullable', Rule::exists('dependents', 'id')->where('user_id', auth()->id())],
             'time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
         ], ['time.required' => 'Please choose a time slot.']);
 
@@ -176,6 +178,7 @@ class PatientBookingController extends Controller
             'department_id'  => $doctor->department_id,
             'scheduled_time' => $at,
             'status'         => 'booked',
+            'dependent_id' => $request->input('dependent_id') ?: null,
         ]);
 
         return redirect()->route('patient.appointments')->with('success',
@@ -278,7 +281,7 @@ class PatientBookingController extends Controller
             : null;
 
         $entry = $this->scheduler->checkIn(
-            auth()->id(), (int) $data['department_id'], $doctor?->id, $data['urgency_level'], $appointmentId
+            auth()->id(), (int) $data['department_id'], $doctor?->id, $data['urgency_level'], $appointmentId,$scheduler->checkIn(auth()->id(), $department->id, $doctorId, $urgency, null, $request->input('dependent_id') ? (int) $request->input('dependent_id') : null);
         );
 
         return redirect()->route('patient.queue-status')

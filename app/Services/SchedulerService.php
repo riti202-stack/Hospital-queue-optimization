@@ -23,10 +23,12 @@ class SchedulerService
 
     /** The one way to put a patient in a queue (number + duplicate guard happen in the model) */
     public function checkIn(int $patientId, int $departmentId, ?int $doctorId = null,
-                            string $urgency = 'routine', ?int $appointmentId = null): QueueEntry
+                            string $urgency = 'routine', ?int $appointmentId = null,?int $dependentId = null): QueueEntry
     {
         $this->ensureDailyCleanup();
         $this->fillMissingTokens();
+
+        $dependentId ??= $appointmentId ? \App\Models\Appointment::find($appointmentId)?->dependent_id : null;
 
         $entry = QueueEntry::create([
             'patient_id'     => $patientId,
@@ -36,6 +38,8 @@ class SchedulerService
             'urgency_level'  => $urgency,
             'status'         => 'waiting',
             'checked_in_at'  => now(),
+            'dependent_id' => $dependentId,
+
         ]);
 
         $entry->load('appointment');
