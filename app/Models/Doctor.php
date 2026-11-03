@@ -23,6 +23,21 @@ class Doctor extends Model
     {
         return $this->hasMany(DoctorQualification::class);
     }
+
+    public function reviews()
+    {
+        return $this->hasMany(\App\Models\DoctorReview::class);
+    }
+
+    public function visibleReviews()
+    {
+        return $this->reviews()->where('is_visible',true);
+    }
+
+    public function displayName():string
+    {
+        return $this->user->name ?? $this->name ?? 'Doctor'
+    }
        
     
 }

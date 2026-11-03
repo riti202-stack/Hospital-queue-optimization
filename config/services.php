@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'sms' => [
+    'driver'    => env('SMS_DRIVER', 'log'),   // log = writes to storage/logs/laravel.log
+    'url'       => env('SMS_URL'),
+    'api_key'   => env('SMS_API_KEY'),
+    'sender_id' => env('SMS_SENDER_ID'),
+],
+
 ];

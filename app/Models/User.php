@@ -52,4 +52,9 @@ class User extends Authenticatable
     {
         return $this->hasOne(\App\Models\Doctor::class);
     }
+
+    public function dependents()
+    {
+        return $this->hasMany(\App\Models\Dependent::class);
+    }
 }

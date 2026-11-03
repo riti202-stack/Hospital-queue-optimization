@@ -16,7 +16,7 @@ class TestRequest extends Model
     const CLOSE_HOUR = 18 ; //6:00 PM
 
     protected $fillable =[
-        'patient_id','doctor_id','status','preferred_at','suggested_at','scheduled_at','room_no','conducted_by','total_amount','patient_note','admin_message',
+        'patient_id','doctor_id','status','preferred_at','suggested_at','scheduled_at','room_no','conducted_by','total_amount','patient_note','admin_message','dependent_id',
 
     ];
 

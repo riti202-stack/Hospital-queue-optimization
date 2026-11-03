@@ -11,8 +11,8 @@ class QueueEntry extends Model
 {
     protected $fillable = [
         'patient_id', 'doctor_id', 'department_id', 'appointment_id', 'token_no',
-        'urgency_level', 'priority_score', 'checked_in_at', 'status', 'started_at', 'completed_at',
-    ];
+        'urgency_level', 'priority_score', 'checked_in_at', 'status', 'started_at', 'completed_at','dependent_id'
+,    ];
 
     protected $casts = [
         'checked_in_at' => 'datetime',
@@ -26,6 +26,27 @@ class QueueEntry extends Model
     public function appointment(){ return $this->belongsTo(Appointment::class); }
     public function logs()       { return $this->hasMany(QueueLog::class); }
 
+    public function dependent()
+{
+    return $this->belongsTo(\App\Models\Dependent::class);
+}
+
+public function prescription()
+{
+    return $this->hasOne(\App\Models\Prescription::class);
+}
+
+public function review()
+{
+    return $this->hasOne(\App\Models\DoctorReview::class);
+}
+
+public function patientLabel(): string
+{
+    return $this->dependent ? $this->dependent->label() : ($this->patient->name ?? 'Patient');
+}
+
+
     protected static function booted(): void
     {
         // Every new check-in, from ANY page: block duplicates and give a queue number
@@ -34,6 +55,7 @@ class QueueEntry extends Model
             $e->checked_in_at ??= now();
 
             $already = static::where('patient_id', $e->patient_id)
+                ->where('dependent_id',$e->dependent_id)
                 ->whereIn('status', ['waiting', 'in_progress'])
                 ->where('checked_in_at', '>=', today())
                 ->exists();
