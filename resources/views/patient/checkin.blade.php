@@ -27,6 +27,8 @@
                 </label>
             </div>
         </div>
+
+        @include('partials.booking-for')
         <div class="col-12">
             <button class="btn btn-brand"><i class="ti ti-login"></i> Check in</button>
         </div>

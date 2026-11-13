@@ -61,6 +61,8 @@
             <div class="alert alert-warning mt-3">No free slots on this date. Please choose another day.</div>
         @endif
 
+        @include('partials.booking-for')
+
         <button class="btn btn-brand btn-lg mt-4" {{ $freeCount ? '' : 'disabled' }}>
             <i class="ti ti-check"></i> Confirm booking
         </button>

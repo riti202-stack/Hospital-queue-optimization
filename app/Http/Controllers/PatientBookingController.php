@@ -280,8 +280,13 @@ class PatientBookingController extends Controller
                 ->where('status', 'booked')->whereDate('scheduled_time', today())->value('id')
             : null;
 
-        $entry = $this->scheduler->checkIn(
-            auth()->id(), (int) $data['department_id'], $doctor?->id, $data['urgency_level'], $appointmentId,$scheduler->checkIn(auth()->id(), $department->id, $doctorId, $urgency, null, $request->input('dependent_id') ? (int) $request->input('dependent_id') : null);
+                $entry = $this->scheduler->checkIn(
+            auth()->id(),
+            (int) $data['department_id'],
+            $doctor?->id,
+            $data['urgency_level'],
+            $appointmentId,
+            $request->input('dependent_id') ? (int) $request->input('dependent_id') : null
         );
 
         return redirect()->route('patient.queue-status')

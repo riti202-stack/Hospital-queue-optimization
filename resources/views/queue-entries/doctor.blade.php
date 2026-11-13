@@ -56,7 +56,7 @@
                 @foreach($queue as $i => $e)
                     <tr class="{{ $i === 0 ? 'table-success' : '' }}">
                         <td><strong>{{ $i + 1 }}</strong>@if($i === 0)<br><small class="text-success fw-semibold">Next</small>@endif</td>
-                        <td><span class="badge bg-dark">#{{ $e->token_no }}</span></td><td class="fw-semibold">{{ $e->patient->name ?? 'Patient' }}</td>
+                        <td><span class="badge bg-dark">#{{ $e->token_no }}</span></td><td class="fw-semibold">{{ $e->patientLabel() ?? 'Patient' }}</td>
                         <td><span class="badge {{ $badge($e->urgency_level) }}">{{ ucfirst($e->urgency_level) }}</span></td>
                         <td>{{ \Carbon\Carbon::parse($e->checked_in_at)->diffForHumans(null, true) }}</td>
                         <td class="small text-muted">

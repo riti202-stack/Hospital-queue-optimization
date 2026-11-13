@@ -103,7 +103,7 @@
                     <tr class="queue-row">
                         <td><span class="pos-circle">{{ $row['position'] }}</span></td>
                         <td>
-                            <div class="fw-semibold"><span class="badge bg-dark me-1">#{{ $e->token_no }}</span>{{ $e->patient->name ?? 'Patient' }}</div>
+                            <div class="fw-semibold"><span class="badge bg-dark me-1">#{{ $e->token_no }}</span>{{ $e->patientLabel() ?? 'Patient' }}</div>
                             <span class="badge {{ $badge($e->urgency_level) }}">{{ $e->urgency_level }}</span>
                         </td>
                         <td class="small text-muted">{{ $row['reason'] }}</td>

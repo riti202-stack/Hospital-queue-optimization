@@ -36,7 +36,7 @@ class Doctor extends Model
 
     public function displayName():string
     {
-        return $this->user->name ?? $this->name ?? 'Doctor'
+        return $this->user->name ?? $this->name ?? 'Doctor';
     }
        
     
