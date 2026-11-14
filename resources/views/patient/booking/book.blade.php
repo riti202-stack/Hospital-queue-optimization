@@ -63,6 +63,12 @@
 
         @include('partials.booking-for')
 
+        @if($errors->any())
+    <div class="alert alert-danger mt-3">
+        @foreach($errors->all() as $e)<div><i class="ti ti-alert-triangle"></i> {{ $e }}</div>@endforeach
+    </div>
+@endif
+
         <button class="btn btn-brand btn-lg mt-4" {{ $freeCount ? '' : 'disabled' }}>
             <i class="ti ti-check"></i> Confirm booking
         </button>

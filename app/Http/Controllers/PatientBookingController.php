@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\Department;
+use App\Models\Dependent;
 use App\Models\Doctor;
 use App\Models\QueueEntry;
 use App\Services\SchedulerService;
@@ -21,6 +22,12 @@ class PatientBookingController extends Controller
         return $query
             ->where(fn ($q) => $q->whereNull('background_check_status')->orWhere('background_check_status', '!=', 'flagged'))
             ->where(fn ($q) => $q->whereNull('license_expiry')->orWhere('license_expiry', '>=', today()));
+    }
+
+    /** Validation rule: the family member must belong to the logged-in user */
+    private function dependentRule(): array
+    {
+        return ['nullable', 'integer', Rule::exists('dependents', 'id')->where('user_id', auth()->id())];
     }
 
     // ===================== Shared data =====================
@@ -67,18 +74,30 @@ class PatientBookingController extends Controller
             ->values();
     }
 
-    /** Already in a queue today? Send them to My Queue */
-    private function alreadyQueued()
+    /**
+     * Is this person (account holder when $dependentId is null, otherwise the family member)
+     * already in a queue today? Returns a redirect to My Queue, or null.
+     */
+    private function alreadyQueued(?int $dependentId = null)
     {
         $entry = QueueEntry::where('patient_id', auth()->id())
+            ->where('dependent_id', $dependentId)
             ->whereIn('status', ['waiting', 'in_progress'])
             ->where('checked_in_at', '>=', today())
             ->first();
 
-        return $entry
-            ? redirect()->route('patient.queue-status')
-                ->with('success', "You are already checked in (queue no. #{$entry->token_no}).")
-            : null;
+        if (! $entry) return null;
+
+        $who = $dependentId ? (Dependent::find($dependentId)?->name ?? 'This family member') : 'You';
+
+        return redirect()->route('patient.queue-status')
+            ->with('success', "{$who} " . ($dependentId ? 'is' : 'are') . " already checked in (queue no. #{$entry->token_no}).");
+    }
+
+    /** On the browsing pages, block only accounts without family members (they can only check in themselves) */
+    private function blockIfSoloAndQueued()
+    {
+        return auth()->user()->dependents()->exists() ? null : $this->alreadyQueued();
     }
 
     private function todaysAppointment()
@@ -150,12 +169,13 @@ class PatientBookingController extends Controller
         $this->ensureVisible($doctor);
 
         $request->validate([
-            'date' => 'required|date|after_or_equal:today|before_or_equal:' . today()->addDays(30)->toDateString(),
-            'dependent_id' => ['nullable', Rule::exists('dependents', 'id')->where('user_id', auth()->id())],
-            'time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
+            'date'         => 'required|date|after_or_equal:today|before_or_equal:' . today()->addDays(30)->toDateString(),
+            'time'         => ['required', 'regex:/^\d{2}:\d{2}$/'],
+            'dependent_id' => $this->dependentRule(),
         ], ['time.required' => 'Please choose a time slot.']);
 
-        $at = Carbon::parse($request->date . ' ' . $request->time);
+        $at          = Carbon::parse($request->date . ' ' . $request->time);
+        $dependentId = $request->input('dependent_id') ? (int) $request->input('dependent_id') : null;
 
         if (! $doctor->is_available) {
             return back()->withErrors(['time' => 'This doctor is not taking bookings right now.']);
@@ -167,22 +187,26 @@ class PatientBookingController extends Controller
                 ->whereIn('status', ['booked', 'completed'])->exists()) {
             return back()->withErrors(['time' => 'Sorry, that slot was just taken. Please choose another.'])->withInput();
         }
-        if (Appointment::where('patient_id', auth()->id())->where('doctor_id', $doctor->id)
+        // one booking per PERSON per doctor per day (parent and child may both book)
+        if (Appointment::where('patient_id', auth()->id())->where('dependent_id', $dependentId)
+                ->where('doctor_id', $doctor->id)
                 ->whereDate('scheduled_time', $at)->where('status', 'booked')->exists()) {
-            return back()->withErrors(['time' => 'You already have a booking with this doctor on that day.']);
+            return back()->withErrors(['time' => ($dependentId ? 'This family member already has' : 'You already have') . ' a booking with this doctor on that day.'])->withInput();
         }
 
         Appointment::create([
             'patient_id'     => auth()->id(),
+            'dependent_id'   => $dependentId,
             'doctor_id'      => $doctor->id,
             'department_id'  => $doctor->department_id,
             'scheduled_time' => $at,
             'status'         => 'booked',
-            'dependent_id' => $request->input('dependent_id') ?: null,
         ]);
 
+        $who = $dependentId ? ' for ' . (Dependent::find($dependentId)?->name ?? 'your family member') : '';
+
         return redirect()->route('patient.appointments')->with('success',
-            'Booked with ' . ($doctor->user->name ?? 'the doctor') . ' on ' . $at->format('D, d M Y \a\t h:i A') . '.');
+            'Booked' . $who . ' with ' . ($doctor->user->name ?? 'the doctor') . ' on ' . $at->format('D, d M Y \a\t h:i A') . '.');
     }
 
     private function pickDate(?string $input): Carbon
@@ -204,7 +228,7 @@ class PatientBookingController extends Controller
 
     public function checkinDepartments()
     {
-        if ($r = $this->alreadyQueued()) return $r;
+        if ($r = $this->blockIfSoloAndQueued()) return $r;
 
         return view('patient.booking.departments', [
             'departments'      => $this->departmentList(),
@@ -215,7 +239,7 @@ class PatientBookingController extends Controller
 
     public function checkinDoctors(Department $department)
     {
-        if ($r = $this->alreadyQueued()) return $r;
+        if ($r = $this->blockIfSoloAndQueued()) return $r;
 
         $unassignedWaiting = QueueEntry::where('department_id', $department->id)
             ->where('status', 'waiting')
@@ -233,7 +257,7 @@ class PatientBookingController extends Controller
 
     public function checkinConfirm(Department $department, ?Doctor $doctor = null)
     {
-        if ($r = $this->alreadyQueued()) return $r;
+        if ($r = $this->blockIfSoloAndQueued()) return $r;
 
         if ($doctor) {
             abort_unless($doctor->department_id === $department->id, 404);
@@ -257,13 +281,17 @@ class PatientBookingController extends Controller
 
     public function checkinStore(Request $request)
     {
-        if ($r = $this->alreadyQueued()) return $r;
-
         $data = $request->validate([
             'department_id' => 'required|exists:departments,id',
             'doctor_id'     => 'nullable|exists:doctors,id',
             'urgency_level' => 'required|in:emergency,urgent,routine',
+            'dependent_id'  => $this->dependentRule(),
         ], ['urgency_level.required' => 'Please tell us how urgent your condition is.']);
+
+        $dependentId = ! empty($data['dependent_id']) ? (int) $data['dependent_id'] : null;
+
+        // this PERSON must not already be in a queue today
+        if ($r = $this->alreadyQueued($dependentId)) return $r;
 
         $doctor = null;
         if (! empty($data['doctor_id'])) {
@@ -274,22 +302,28 @@ class PatientBookingController extends Controller
             }
         }
 
-        // If they have a booking today with this doctor, link it
+        // If THIS person has a booking today with this doctor, link it
         $appointmentId = $doctor
-            ? Appointment::where('patient_id', auth()->id())->where('doctor_id', $doctor->id)
-                ->where('status', 'booked')->whereDate('scheduled_time', today())->value('id')
+            ? Appointment::where('patient_id', auth()->id())
+                ->where('dependent_id', $dependentId)
+                ->where('doctor_id', $doctor->id)
+                ->where('status', 'booked')
+                ->whereDate('scheduled_time', today())
+                ->value('id')
             : null;
 
-                $entry = $this->scheduler->checkIn(
+        $entry = $this->scheduler->checkIn(
             auth()->id(),
             (int) $data['department_id'],
             $doctor?->id,
             $data['urgency_level'],
             $appointmentId,
-            $request->input('dependent_id') ? (int) $request->input('dependent_id') : null
+            $dependentId
         );
 
+        $who = $dependentId ? (Dependent::find($dependentId)?->name ?? 'Your family member') . ' is' : 'You are';
+
         return redirect()->route('patient.queue-status')
-            ->with('success', "You are checked in. Your queue number is #{$entry->token_no}.");
+            ->with('success', "{$who} checked in. Queue number #{$entry->token_no}.");
     }
 }
