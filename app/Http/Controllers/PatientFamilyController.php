@@ -23,15 +23,22 @@ class PatientFamilyController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $request->user()->dependents()->create($this->validated($request));
+{
+    $member = $request->user()->dependents()->create($this->validated($request));
 
-        // came from the booking form? go back there
-        if ($request->filled('return_to')) {
-            return redirect($request->input('return_to'))->with('success', __('Family member added.'));
-        }
-        return redirect()->route('patient.family.index')->with('success', __('Family member added.'));
+    // Called from the booking pop-up → return the new member as JSON
+    if ($request->expectsJson()) {
+        return response()->json([
+            'id'    => $member->id,
+            'label' => $member->name . ' (' . __($member->relation) . ')',
+        ], 201);
     }
+
+    if ($request->filled('return_to')) {
+        return redirect($request->input('return_to'))->with('success', __('Family member added.'));
+    }
+    return redirect()->route('patient.family.index')->with('success', __('Family member added.'));
+}
 
     public function edit(Dependent $dependent)
     {
