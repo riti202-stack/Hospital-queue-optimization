@@ -204,4 +204,58 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::patch('/reviews/{review}/toggle', [AdminReviewController::class, 'toggle'])->name('reviews.toggle');
 });
 
+
+Route::get('/lang/{locale}', LanguageController::class)
+    ->whereIn('locale', ['en', 'bn'])->name('lang.switch');
+
+// 7. Lab report download (admin / patient / referring doctor — checked in controller)
+Route::middleware('auth')->get('/lab-reports/{testRequest}', [LabReportController::class, 'download'])
+    ->name('lab-reports.download');
+
+// ---------- Patient ----------
+Route::middleware(['auth', 'role:patient'])->prefix('patient')->name('patient.')->group(function () {
+    // 6. Records
+    Route::get('/records', [PatientRecordController::class, 'index'])->name('records');
+    Route::get('/records/prescriptions/{prescription}', [PatientRecordController::class, 'show'])->name('records.prescription');
+    Route::get('/records/prescriptions/{prescription}/pdf', [PatientRecordController::class, 'pdf'])->name('records.prescription.pdf');
+
+    // 10. Reviews
+    Route::get('/visits/{entry}/review', [PatientReviewController::class, 'create'])->name('reviews.create');
+    Route::post('/visits/{entry}/review', [PatientReviewController::class, 'store'])->name('reviews.store');
+
+    // 9. Cancel / reschedule
+    Route::post('/appointments/{appointment}/cancel', [PatientAppointmentController::class, 'cancel'])->name('appointments.cancel');
+    Route::get('/appointments/{appointment}/reschedule', [PatientAppointmentController::class, 'rescheduleForm'])->name('appointments.reschedule');
+    Route::put('/appointments/{appointment}/reschedule', [PatientAppointmentController::class, 'reschedule'])->name('appointments.reschedule.update');
+
+    // 11. Family
+    Route::resource('family', PatientFamilyController::class)->except('show')->parameters(['family' => 'dependent']);
+
+    // 8 + 12. Settings
+    Route::get('/settings', [PatientSettingsController::class, 'edit'])->name('settings');
+    Route::put('/settings', [PatientSettingsController::class, 'update'])->name('settings.update');
+});
+
+// ---------- Doctor ----------
+Route::middleware(['auth', 'role:doctor'])->prefix('doctor')->name('doctor.')->group(function () {
+    Route::get('/queue/{entry}/prescription', [DoctorPrescriptionController::class, 'create'])->name('prescriptions.create');
+    Route::post('/queue/{entry}/prescription', [DoctorPrescriptionController::class, 'store'])->name('prescriptions.store');
+    Route::get('/prescriptions/{prescription}/edit', [DoctorPrescriptionController::class, 'edit'])->name('prescriptions.edit');
+    Route::put('/prescriptions/{prescription}', [DoctorPrescriptionController::class, 'update'])->name('prescriptions.update');
+    Route::get('/prescriptions/{prescription}/pdf', [DoctorPrescriptionController::class, 'pdf'])->name('prescriptions.pdf');
+
+    Route::get('/patients/{patient}/history', [DoctorRecordsController::class, 'history'])->name('patients.history');
+    Route::get('/lab-reports', [DoctorRecordsController::class, 'labReports'])->name('lab-reports');
+    Route::get('/reviews', [DoctorRecordsController::class, 'reviews'])->name('reviews');
+});
+
+// ---------- Admin ----------
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::post('/test-requests/{testRequest}/report', [LabReportController::class, 'upload'])->name('test-requests.report.upload');
+    Route::delete('/test-requests/{testRequest}/report', [LabReportController::class, 'destroy'])->name('test-requests.report.destroy');
+
+    Route::get('/reviews', [AdminReviewController::class, 'index'])->name('reviews.index');
+    Route::patch('/reviews/{review}/toggle', [AdminReviewController::class, 'toggle'])->name('reviews.toggle');
+});
+
 require __DIR__.'/auth.php';
