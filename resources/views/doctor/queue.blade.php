@@ -28,6 +28,7 @@
     </div>
 
     @if(session('success'))<div class="alert alert-success py-2">{{ session('success') }}</div>@endif
+    @if(session('error'))<div class="alert alert-danger py-2">{{ session('error') }}</div>@endif
 
     {{-- ===== NOW SEEING ===== --}}
     @if($current)
@@ -35,10 +36,19 @@
             <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
                     <div class="text-muted small text-uppercase">Now seeing</div>
-                    <h5 class="mb-0"><span class="badge bg-dark me-1">#{{ $current->token_no }}</span>{{ $current->patient->name ?? 'Patient' }}
-                    <small class="text-muted">Started {{ \Carbon\Carbon::parse($current->started_at)->diffForHumans() }}</small>
+                    <h5 class="mb-0">
+                        <span class="badge bg-dark me-1">#{{ $current->token_no }}</span>{{ $current->patientLabel() }}
+                    </h5>
+                    <small class="text-muted">Started {{ \Carbon\Carbon::parse($current->started_at ?? $current->called_at)->diffForHumans() }}</small>
                 </div>
-                <div class="d-flex gap-2">
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{{ route('doctor.prescriptions.create', $current) }}" class="btn btn-outline-primary">
+                        <i class="ti ti-prescription"></i> {{ $current->prescription ? 'Edit prescription' : 'Write prescription' }}
+                    </a>
+                    <a href="{{ route('doctor.patients.history', ['patient' => $current->patient_id, 'dependent' => $current->dependent_id]) }}"
+                       class="btn btn-outline-secondary">
+                        <i class="ti ti-history"></i> Patient history
+                    </a>
                     {{-- Paste your existing "Send for tests" button/form here, using $current --}}
                     <form method="POST" action="{{ route('doctor.queue.complete') }}">
                         @csrf
@@ -57,7 +67,9 @@
                 <span class="pos-circle big-pos">1</span>
                 <div class="flex-grow-1">
                     <div class="text-muted small text-uppercase fw-semibold">Call next</div>
-                    <h2 class="mb-1"><span class="badge bg-dark me-2">#{{ $n->token_no }}</span>{{ $n->patient->name ?? 'Patient' }}
+                    <h2 class="mb-1">
+                        <span class="badge bg-dark me-2">#{{ $n->token_no }}</span>{{ $n->patientLabel() }}
+                    </h2>
                     <div class="mb-1"><i class="ti ti-info-circle"></i> {{ $next['reason'] }}</div>
                     <small class="text-muted">
                         Checked in {{ \Carbon\Carbon::parse($n->checked_in_at)->format('h:i A') }}
@@ -103,14 +115,14 @@
                     <tr class="queue-row">
                         <td><span class="pos-circle">{{ $row['position'] }}</span></td>
                         <td>
-                            <div class="fw-semibold"><span class="badge bg-dark me-1">#{{ $e->token_no }}</span>{{ $e->patientLabel() ?? 'Patient' }}</div>
+                            <div class="fw-semibold"><span class="badge bg-dark me-1">#{{ $e->token_no }}</span>{{ $e->patientLabel() }}</div>
                             <span class="badge {{ $badge($e->urgency_level) }}">{{ $e->urgency_level }}</span>
                         </td>
                         <td class="small text-muted">{{ $row['reason'] }}</td>
                         <td class="small">~{{ $row['expectedAt']->format('h:i A') }}</td>
                         <td class="text-end">
                             <form method="POST" action="{{ route('doctor.queue.call', $e) }}"
-                                  onsubmit="return confirm('Call {{ addslashes($e->patient->name ?? 'this patient') }} before patient #1?')">
+                                  onsubmit="return confirm(@js('Call ' . $e->patientLabel() . ' before patient #1?'))">
                                 @csrf
                                 <button class="btn btn-sm btn-outline-secondary" title="Call out of turn">
                                     <i class="ti ti-arrow-bar-to-up"></i> Call now
