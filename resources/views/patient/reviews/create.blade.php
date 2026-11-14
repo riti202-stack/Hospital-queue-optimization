@@ -1,4 +1,4 @@
-@extends('layouts.main')
+ @extends('layouts.main')
 
 @section('content')
 <div class="page-card" style="max-width:640px;margin:auto">
@@ -15,13 +15,14 @@
 
     <form method="POST" action="{{ route('patient.reviews.store', $entry) }}">
         @csrf
-        <label class="form-label fw-semibold">{{ __('Your rating') }}</label>
-        <div class="star-input d-flex flex-row-reverse justify-content-end gap-1 mb-3">
+        <label class="form-label fw-semibold d-block">{{ __('Your rating') }}</label>
+        <div class="star-input mb-1">
             @for($s = 5; $s >= 1; $s--)
-                <input type="radio" class="btn-check" name="rating" id="star{{ $s }}" value="{{ $s }}" @checked(old('rating') == $s) required>
-                <label for="star{{ $s }}" class="fs-1" style="cursor:pointer"><i class="ti ti-star-filled"></i></label>
+                <input type="radio" name="rating" id="star{{ $s }}" value="{{ $s }}" @checked(old('rating') == $s) required>
+                <label for="star{{ $s }}" title="{{ $s }} / 5">★</label>
             @endfor
         </div>
+        <small class="text-muted d-block mb-3" id="ratingText">{{ __('Tap a star') }}</small>
 
         <div class="mb-3">
             <label class="form-label">{{ __('Comment (optional)') }}</label>
@@ -33,9 +34,19 @@
 </div>
 
 <style>
-    .star-input label { color: #d0d5d4; transition: color .1s; }
+    .star-input { display: inline-flex; flex-direction: row-reverse; gap: 6px; }
+    .star-input input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .star-input label { font-size: 44px; line-height: 1; color: #cfd6d4; cursor: pointer; transition: color .1s, transform .1s; }
+    .star-input label:hover { transform: scale(1.12); }
     .star-input input:checked ~ label,
     .star-input label:hover,
     .star-input label:hover ~ label { color: #f5b301; }
 </style>
+
+<script>
+document.querySelectorAll('.star-input input').forEach(r => r.addEventListener('change', () => {
+    const t = ['', 'Poor', 'Fair', 'Good', 'Very good', 'Excellent'];
+    document.getElementById('ratingText').textContent = r.value + ' / 5 · ' + t[r.value];
+}));
+</script>
 @endsection
