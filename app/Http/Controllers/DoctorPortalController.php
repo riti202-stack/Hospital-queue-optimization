@@ -43,21 +43,16 @@ class DoctorPortalController extends Controller
     }
 
     public function toggleAvailability(Request $request)
-    {
-        $doctor = auth()->user()->doctor;
+{
+    $doctor = \App\Models\Doctor::where('user_id', auth()->id())->firstOrFail();
 
-        if(!$doctor)
-            {
-                abort(403,'Your account is not linked to a doctor profile');
-            }
+    // "1" → available, "0" → paused
+    $doctor->forceFill(['is_available' => $request->boolean('is_available')])->save();
 
-            $doctor->is_available = $request->has('is_available');
-
-            $doctor->save();
-
-            return redirect()->route('doctor.availability')->with('success','Availability updated.');
-    }
-
+    return back()->with('success', $doctor->is_available
+        ? 'You are available. Patients can book and check in with you.'
+        : 'You are paused. New bookings and check-ins are stopped.');
+}
     public function queueData()
 {
     $doctor = auth()->user()->doctor;
