@@ -47,58 +47,29 @@ class PatientQueueController extends Controller
     }
 
     /** My Appointments: today / upcoming / history, each with its live queue state */
-    public function appointments()
-    {
-        $uid = auth()->id();
-        $this->scheduler->ensureDailyCleanup();
+    
+       
+        public function appointments()
+{
+    $all = Appointment::with(['doctor.user', 'doctor.department', 'dependent'])
+        ->where('patient_id', auth()->id())
+        ->get();
 
-        $appointments = Appointment::with(['doctor.user', 'department'])
-            ->where('patient_id', $uid)
-            ->orderBy('scheduled_time')
-            ->get();
+    // Upcoming = still booked, today or later (soonest first)
+    $upcoming = $all->filter(fn ($a) => $a->status === 'booked'
+                    && \Carbon\Carbon::parse($a->scheduled_time)->gte(today()))
+                    ->sortBy('scheduled_time')->values();
 
-        // Latest queue entry for each appointment
-        $entries = QueueEntry::whereIn('appointment_id', $appointments->pluck('id'))
-            ->orderBy('id')->get()->keyBy('appointment_id');
+    // History = everything else (newest first)
+    $past = $all->diff($upcoming)->sortByDesc('scheduled_time')->values();
 
-        $inQueueNow = QueueEntry::where('patient_id', $uid)
-            ->whereIn('status', ['waiting', 'in_progress'])
-            ->where('checked_in_at', '>=', today())
-            ->exists();
+    // Appointments already checked in today (to hide the Check in button)
+    $checkedIn = QueueEntry::whereIn('appointment_id', $upcoming->pluck('id'))
+        ->whereIn('status', ['waiting', 'in_progress'])
+        ->pluck('appointment_id')->all();
 
-        $rows = $appointments->map(function ($a) use ($entries, $inQueueNow) {
-            $e = $entries->get($a->id);
-            $time = Carbon::parse($a->scheduled_time);
-            $active = $e && in_array($e->status, ['waiting', 'in_progress'])
-                && Carbon::parse($e->checked_in_at)->gte(today());
-
-            $state = match (true) {
-                $active && $e->status === 'in_progress'                      => 'called',
-                $active                                                       => 'waiting',
-                ($e && $e->status === 'completed') || $a->status === 'completed' => 'done',
-                in_array($a->status, ['cancelled', 'canceled'])               => 'cancelled',
-                in_array($a->status, ['no-show', 'no_show'])                  => 'missed',
-                $time->isToday()                                              => $inQueueNow ? 'blocked' : 'checkin',
-                $time->isFuture()                                             => 'upcoming',
-                default                                                       => 'missed',
-            };
-
-            return (object) [
-                'appointment' => $a,
-                'entry'       => $e,
-                'state'       => $state,
-                'live'        => $active ? $this->scheduler->patientStatus($e) : null,
-                'time'        => $time,
-            ];
-        });
-
-        $today    = $rows->filter(fn ($r) => $r->time->isToday())->values();
-        $upcoming = $rows->filter(fn ($r) => ! $r->time->isToday() && $r->time->isFuture() && $r->state === 'upcoming')->values();
-        $history  = $rows->reject(fn ($r) => $r->time->isToday() || ($r->time->isFuture() && $r->state === 'upcoming'))
-            ->sortByDesc(fn ($r) => $r->time->timestamp)->values();
-
-        return view('patient.my-appointments', compact('today', 'upcoming', 'history'));
-    }
+    return view('patient.my-appointments', compact('upcoming', 'past', 'checkedIn'));
+}    
 
     /** Check in for today's appointment */
     public function checkinAppointment(Appointment $appointment)
